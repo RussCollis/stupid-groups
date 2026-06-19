@@ -1,4 +1,10 @@
 # Stupid Groups
+
+### Jamf 11.00+
+Forked to work in Jamf 11+ - tested in 11.29
+Project is unsigned
+
+
 ### What it is: 
 A learning project by Mike Levenick that can convert Smart Groups in Jamf Pro to either Advanced Searches or Static Groups.
 ### Why it exists:
