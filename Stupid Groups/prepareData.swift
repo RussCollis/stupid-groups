@@ -179,6 +179,27 @@ public class prepareData {
         NSLog("[INFO  ]: AUTH URL CREATED: " + stringURL)
         return encodedURL! as URL
     }
+
+    // NEW - Create the URL used to request a Bearer Token. Jamf Pro 11.5.0+
+    // requires Basic auth to be exchanged for a Bearer Token here BEFORE any
+    // Classic API resource (e.g. /JSSResource/...) can be called.
+    // Pass in the BASE server URL only, e.g. "https://instance.jamfcloud.com/"
+    // (NOT the /JSSResource/ suffixed URL used elsewhere in this class).
+    public func createTokenURL(baseURL: String) -> URL {
+        let stringURL = "\(baseURL)api/v1/auth/token"
+        let encodedURL = NSURL(string: stringURL)
+        NSLog("[INFO  ]: TOKEN URL CREATED: " + stringURL)
+        return encodedURL! as URL
+    }
+
+    // NEW - Create the URL used to invalidate a Bearer Token on app quit.
+    // Pass in the BASE server URL only, as with createTokenURL above.
+    public func createInvalidateURL(baseURL: String) -> URL {
+        let stringURL = "\(baseURL)api/v1/auth/invalidate-token"
+        let encodedURL = NSURL(string: stringURL)
+        NSLog("[INFO  ]: INVALIDATE URL CREATED: " + stringURL)
+        return encodedURL! as URL
+    }
     
     // Create the URL that is used to gather the information from an existing smart group
     public func createGETURL(url: String, deviceType: String, id: String) -> URL {

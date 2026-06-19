@@ -5,13 +5,24 @@
 //  Created by Michael Levenick on 1/21/19.
 //  Copyright © 2019 Michael Levenick. All rights reserved.
 //
+//  Updated by Russell Collis on 19/06/2026 to fix authentication for
+//  Jamf Pro 11.29. Basic Authentication can no longer be used directly
+//  against the Classic API (e.g. /JSSResource/activationcode) as of
+//  Jamf Pro 11.5.0. Username/password are now ONLY used to request a
+//  short-lived Bearer Token from /api/v1/auth/token, and that Bearer
+//  Token is what gets passed forward to the main view controller.
+//
 
 import Foundation
 import Cocoa
 
-// This delegate is required to pass the base64 credentials and URL to the main view
+// This delegate is required to pass the Bearer Token and URLs to the main view.
+// UPDATED: now passes a Bearer Token + its expiry + the base server URL +
+// the original Basic credentials (kept in memory only, so the main view
+// controller can silently re-request a new token if the current one expires
+// during a long Pre-Flight Check / Convert session).
 protocol DataSentDelegate {
-    func userDidAuthenticate(base64Credentials: String, url: String)
+    func userDidAuthenticate(bearerToken: String, tokenExpiry: Date, baseURL: String, jssResourceURL: String, basicCredentials: String)
 }
 
 class loginWindow: NSViewController, URLSessionDelegate {
@@ -30,8 +41,11 @@ class loginWindow: NSViewController, URLSessionDelegate {
     @IBOutlet weak var chkBypass: NSButton!
     
     var doNotRun: String!
-    var serverURL: String!
+    var baseURL: String!        // e.g. https://instance.jamfcloud.com/  (used for /api/v1/auth/token)
+    var serverURL: String!      // e.g. https://instance.jamfcloud.com/JSSResource/  (used for Classic API resources)
     var base64Credentials: String!
+    var bearerToken: String!
+    var tokenExpiry: Date!
     var verified = false
 
     // This punctuation variable is used for cleaning thngs up below
@@ -96,32 +110,60 @@ class loginWindow: NSViewController, URLSessionDelegate {
         
         // Move forward with verification if we have not flagged the doNotRun flag
         if doNotRun != "1" {
-            
-            // Create the API-Friendly Jamf Pro URL with resource appended, cleaning up double slashes
-            if txtURLOutlet.stringValue.rangeOfCharacter(from: punctuation) == nil {
-                serverURL = "https://\(txtURLOutlet.stringValue).jamfcloud.com/JSSResource/"
-            } else {
-                serverURL = "\(txtURLOutlet.stringValue)/JSSResource/"
-                serverURL = serverURL.replacingOccurrences(of: "//JSSResource", with: "/JSSResource")
+
+            // Build BOTH the base server URL (used for /api/v1/auth/token) and the
+            // JSSResource URL (used for Classic API calls), cleaning up double slashes.
+            // UPDATED: previous version only built the /JSSResource/ URL - the Bearer
+            // Token endpoint lives at the server root, not under /JSSResource/.
+            var cleanedInput = txtURLOutlet.stringValue
+            if cleanedInput.hasSuffix("/") {
+                cleanedInput.removeLast()
             }
+
+            if cleanedInput.rangeOfCharacter(from: punctuation) == nil {
+                // Bare instance name was entered, e.g. "kpmgukdev" -> Jamf Cloud
+                baseURL = "https://\(cleanedInput).jamfcloud.com/"
+            } else {
+                // Full URL was entered, e.g. "https://jss.kpmg.com"
+                baseURL = "\(cleanedInput)/"
+            }
+            serverURL = "\(baseURL!)JSSResource/"
 
             btnSubmitOutlet.isHidden = true
             spinProgress.startAnimation(self)
             
-            // Concatenate the credentials and base64 encode the resulting string
+            // Concatenate the credentials and base64 encode the resulting string.
+            // NOTE: as of Jamf Pro 11.5.0 this Basic credential is ONLY ever sent to
+            // /api/v1/auth/token below - it is never sent to any Classic API resource.
             let concatCredentials = "\(txtUserOutlet.stringValue):\(txtPassOutlet.stringValue)"
             let utf8Credentials = concatCredentials.data(using: String.Encoding.utf8)
             base64Credentials = utf8Credentials?.base64EncodedString()
-            
-            // MARK - Credential Verification API Call
+
+            // MARK - Step 1: Exchange Basic credentials for a Bearer Token
+            let tokenURL = prepareData().createTokenURL(baseURL: self.baseURL!)
+            guard let tokenResult = API().getBearerToken(basicCredentials: self.base64Credentials!, tokenURL: tokenURL) else {
+                // Token request itself failed outright (bad creds, network error, etc.)
+                DispatchQueue.main.async {
+                    self.spinProgress.stopAnimation(self)
+                    self.btnSubmitOutlet.isHidden = false
+                    _ = popPrompt().generalWarning(question: "Authentication Failed", text: "Stupid Groups was unable to obtain a Bearer Token from \(self.baseURL!)api/v1/auth/token.\n\nPlease check your username, password, and URL, and try again.\n\nIf you are using a self-signed or built-in SSL certificate, try adding the certificate to your keychain, trusting it, and trying again.")
+                    NSLog("[INFO  ]: Invalid authentication attempt - could not obtain Bearer Token.")
+                }
+                return
+            }
+
+            self.bearerToken = tokenResult.token
+            self.tokenExpiry = tokenResult.expires
+
+            // MARK - Step 2: Verify the Bearer Token actually has useful permissions
+            // by reading the activation code, same approach as the original app.
+            // This works far better than looking for a 200 response, because Jamf
+            // Now instances do not have an API, but if you run a GET to them, you
+            // will always get a 200 response.
             let testURL = prepareData().createAuthURL(url: self.serverURL!)
-            let authResponse = API().get(getCredentials: self.base64Credentials!, getURL: testURL)
+            let authResponse = API().get(getToken: self.bearerToken!, getURL: testURL)
             print(authResponse)
 
-            // Look for the activation_code tag in the response. This works far better
-            // than looking for a 200 response, because Jamf Now instances do not have
-            // an API, but if you run a GET to them, you will always get a 200 response.
-            // This causes issues with MUT, and I plan to implement this same code there as well.
             if authResponse.contains("<activation_code><organization_name>") {
                 NSLog("[INFO  ]: Successful authentication attempt.")
                 self.verified = true
@@ -142,9 +184,12 @@ class loginWindow: NSViewController, URLSessionDelegate {
                 self.spinProgress.stopAnimation(self)
                 self.btnSubmitOutlet.isHidden = false
 
-                // Pass the information forward using the delgate and dismiss the login view
+                // Pass the Bearer Token, expiry, URLs, and Basic credentials forward
+                // (Basic credentials are kept ONLY in memory, to silently mint a
+                // fresh Bearer Token if the current one expires mid-session) and
+                // dismiss the login view
                 if self.delegateAuth != nil {
-                    self.delegateAuth?.userDidAuthenticate(base64Credentials: self.base64Credentials!, url: self.serverURL!)
+                    self.delegateAuth?.userDidAuthenticate(bearerToken: self.bearerToken!, tokenExpiry: self.tokenExpiry!, baseURL: self.baseURL!, jssResourceURL: self.serverURL!, basicCredentials: self.base64Credentials!)
                     self.dismiss(self)
                 }
             } else if authResponse.contains("[FATAL ]:"){
@@ -160,12 +205,14 @@ class loginWindow: NSViewController, URLSessionDelegate {
 
                     NSLog("[INFO  ]: Invalid authentication attempt.")
 
-                    // Pass forward credentials and dismiss view if the "bypass authentication"
-                    // checkbox is checked. This is used in security-conscious organizations
-                    // where some admins have minimal permissions, and cannot GET the activation code
+                    // Pass forward the Bearer Token and dismiss view if the "bypass
+                    // authentication" checkbox is checked. This is used in
+                    // security-conscious organizations where some admins have
+                    // minimal permissions and cannot GET the activation code, even
+                    // though their Bearer Token is otherwise perfectly valid.
                     if self.chkBypass.state.rawValue == 1 {
                         if self.delegateAuth != nil {
-                            self.delegateAuth?.userDidAuthenticate(base64Credentials: self.base64Credentials!, url: self.serverURL!)
+                            self.delegateAuth?.userDidAuthenticate(bearerToken: self.bearerToken!, tokenExpiry: self.tokenExpiry!, baseURL: self.baseURL!, jssResourceURL: self.serverURL!, basicCredentials: self.base64Credentials!)
                             self.dismiss(self)
                         }
                         self.verified = true
@@ -180,12 +227,14 @@ class loginWindow: NSViewController, URLSessionDelegate {
                     _ = popPrompt().generalWarning(question: "Invalid Credentials", text: "The credentials you entered do not seem to have sufficient permissions. This could be due to an incorrect user/password, or possibly from insufficient permissions. Stupid Groups tests this against the user's ability to view the Activation Code via the API.")
                     NSLog("[INFO  ]: Invalid authentication attempt.")
 
-                    // Pass forward credentials and dismiss view if the "bypass authentication"
-                    // checkbox is checked. This is used in security-conscious organizations
-                    // where some admins have minimal permissions, and cannot GET the activation code
+                    // Pass forward the Bearer Token and dismiss view if the "bypass
+                    // authentication" checkbox is checked. This is used in
+                    // security-conscious organizations where some admins have
+                    // minimal permissions and cannot GET the activation code, even
+                    // though their Bearer Token is otherwise perfectly valid.
                     if self.chkBypass.state.rawValue == 1 {
                         if self.delegateAuth != nil {
-                            self.delegateAuth?.userDidAuthenticate(base64Credentials: self.base64Credentials!, url: self.serverURL!)
+                            self.delegateAuth?.userDidAuthenticate(bearerToken: self.bearerToken!, tokenExpiry: self.tokenExpiry!, baseURL: self.baseURL!, jssResourceURL: self.serverURL!, basicCredentials: self.base64Credentials!)
                             self.dismiss(self)
                         }
                         self.verified = true
@@ -220,4 +269,3 @@ class loginWindow: NSViewController, URLSessionDelegate {
         }
     }
 }
-

@@ -5,6 +5,14 @@
 //  Created by Michael Levenick on 1/21/19.
 //  Copyright © 2019 Michael Levenick. All rights reserved.
 //
+//  Updated by Russell Collis on 19/06/2026 to fix authentication for
+//  Jamf Pro 11.29. The app now stores a Bearer Token (instead of base64
+//  Basic credentials) and uses it for every Classic API call. Because
+//  Jamf Pro Bearer Tokens are short-lived (30 minutes by default), a
+//  small ensureValidToken() check runs before every GET/POST and silently
+//  re-requests a fresh token if fewer than 60 seconds remain - mirroring
+//  the token-refresh pattern used elsewhere in KPMG's Jamf tooling.
+//
 
 import Cocoa
 
@@ -12,10 +20,11 @@ class ViewController: NSViewController, URLSessionDelegate, DataSentDelegate {
     
     // Declare Variables
     // Many of these are declared globally so they can be easily passed from function to function
-    var globalServerURL: String!
-    var globalServerCredentials: String!
-    var base64Credentials: String!
-    var serverURL: String!
+    var globalBaseURL: String!          // e.g. https://instance.jamfcloud.com/   (used for token requests)
+    var globalServerURL: String!        // e.g. https://instance.jamfcloud.com/JSSResource/  (used for Classic API)
+    var globalBearerToken: String!      // current valid Bearer Token
+    var globalTokenExpiry: Date!        // when globalBearerToken expires
+    var globalBasicCredentials: String! // base64 "user:pass" - kept ONLY in memory, used to silently refresh the token
     var verified = false
     var globalHTTPFunction: String!
     var myURL: URL!
@@ -50,8 +59,18 @@ class ViewController: NSViewController, URLSessionDelegate, DataSentDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         preferredContentSize = NSSize(width: 383, height: 420) // Limits resizing of the window
+        applyDropDownFontColors()
         printString(header: true, error: false, green: false, fixedPoint: false, lineBreakAfter: true, message: "Welcome to Stupid Groups v1.1")
-        printString(header: false, error: false, green: false, fixedPoint: false, lineBreakAfter: true, message: "\nSometimes your groups get too smart.\n\nStupid Groups is here to help.\n\nConvert groups that rarely change membership to Static Groups, and convert compliance reporting groups that aren't used for scoping to Advanced Searches.\n\nEnter your data above and run a Pre-Flight Check to begin.\n")
+        printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "\nSometimes your groups get too smart.\n\nStupid Groups is here to help.\n\nConvert groups that rarely change membership to Static Groups, and convert compliance reporting groups that aren't used for scoping to Advanced Searches.\n\nEnter your data above and run a Pre-Flight Check to begin.\n")
+
+        // NEW - Best-effort Bearer Token invalidation when the app quits.
+        // Tokens expire on their own after 30 minutes regardless, so failure
+        // here is harmless - this is just good housekeeping.
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { [weak self] _ in
+            guard let self = self, let token = self.globalBearerToken, let base = self.globalBaseURL else { return }
+            let invalidateURL = prepareData().createInvalidateURL(baseURL: base)
+            API().invalidateToken(token: token, invalidateURL: invalidateURL)
+        }
     }
 
     // Trigger the actual sheet segue upon the view fully appearing
@@ -70,17 +89,67 @@ class ViewController: NSViewController, URLSessionDelegate, DataSentDelegate {
     }
      */
 
+    private func applyDropDownFontColors() {
+        let titleColor = NSColor(calibratedRed: 0.921431005, green: 0.9214526415, blue: 0.9214410186, alpha: 1.0)
+        applyDropDownFontColor(to: popDeviceType, color: titleColor)
+        applyDropDownFontColor(to: popConvertTo, color: titleColor)
+    }
+
+    private func applyDropDownFontColor(to popUpButton: NSPopUpButton, color: NSColor) {
+        let font = popUpButton.font ?? NSFont.messageFont(ofSize: NSFont.systemFontSize)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color
+        ]
+
+        for item in popUpButton.itemArray {
+            item.attributedTitle = NSAttributedString(string: item.title, attributes: attributes)
+        }
+
+        if let selectedTitle = popUpButton.titleOfSelectedItem {
+            popUpButton.attributedTitle = NSAttributedString(string: selectedTitle, attributes: attributes)
+        }
+    }
+
+    // NEW - Ensures the in-memory Bearer Token is still valid before any
+    // Classic API call. If fewer than 60 seconds remain (or the token has
+    // already expired), silently re-requests a fresh one using the Basic
+    // credentials retained from the login screen. Required because Jamf
+    // Pro Bearer Tokens expire after 30 minutes by default, and a
+    // Pre-Flight Check + Convert workflow can easily run longer than that
+    // if the admin is reviewing several groups.
+    func ensureValidToken() {
+        guard let expiry = globalTokenExpiry else { return }
+        let remaining = expiry.timeIntervalSinceNow
+
+        if remaining < 60 {
+            NSLog("[AUTH  ]: Bearer Token expiring soon (\(Int(remaining))s remaining) - refreshing...")
+            let tokenURL = prepareData().createTokenURL(baseURL: globalBaseURL)
+            if let refreshed = API().getBearerToken(basicCredentials: globalBasicCredentials, tokenURL: tokenURL) {
+                self.globalBearerToken = refreshed.token
+                self.globalTokenExpiry = refreshed.expires
+                NSLog("[AUTH  ]: Bearer Token refreshed successfully.")
+            } else {
+                NSLog("[ERROR ]: Failed to refresh Bearer Token. Subsequent calls may fail with 401.")
+            }
+        }
+    }
+
     // This is the "Pre-Flight Check" button.
     @IBAction func btnGET(_ sender: Any) {
         // Clear the box on the main view controller, and then print some information.
         clearLog()
         printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "Gathering data about \(popDeviceType.titleOfSelectedItem!) group number \(txtGroupID.stringValue)...\n")
         NSLog("[INFO  ]: Starting GET function.")
+
+        // Make sure our Bearer Token is still valid before calling the API
+        ensureValidToken()
+
         // Prepare a URL to use for the GET call, based on device type and ID
         let getURL = prepareData().createGETURL(url: globalServerURL, deviceType: self.popDeviceType.titleOfSelectedItem!, id: self.txtGroupID.stringValue)
         
-        // Pass the URL and credentials into the function to get the response XML back
-        let smartGroupXML = API().get(getCredentials: globalServerCredentials, getURL: getURL)
+        // Pass the URL and Bearer Token into the function to get the response XML back
+        let smartGroupXML = API().get(getToken: globalBearerToken, getURL: getURL)
 
         // I opted to parse the returned data, and look for a <name> tag instead of using the
         // response code, as I have noticed the response code is not always reliable when
@@ -109,11 +178,15 @@ class ViewController: NSViewController, URLSessionDelegate, DataSentDelegate {
         printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "Submitting data to create new \(popConvertTo.titleOfSelectedItem!) named \(newName ?? "nil")...\n")
         notReadyToRun()
         NSLog("[INFO  ]: Starting POST function.")
+
+        // Make sure our Bearer Token is still valid before calling the API
+        ensureValidToken()
+
         let deviceData = prepareData().deviceData(deviceType: self.popDeviceType.titleOfSelectedItem!, conversionType: self.popConvertTo.titleOfSelectedItem!)
         
         let xmlToPost = prepareData().xmlToPost(newName: newName, siteID: siteID, criteria: smartGroupCriteria, membership: smartGroupMembership, conversionType: popConvertTo.titleOfSelectedItem!, deviceRoot: deviceData[0], devicePlural: deviceData[1], deviceSingular: deviceData[2])
         let postURL = prepareData().createPOSTURL(url: globalServerURL, endpoint: deviceData[3] )
-        let postResponse = API().post(postCredentials: globalServerCredentials, postURL: postURL, postBody: xmlToPost)
+        let postResponse = API().post(postToken: globalBearerToken, postURL: postURL, postBody: xmlToPost)
 
         if postResponse.contains("<id>"){
             DispatchQueue.main.async {
@@ -140,10 +213,14 @@ class ViewController: NSViewController, URLSessionDelegate, DataSentDelegate {
     }
 
     // This function is required to allow the login window to pass
-    // the URL and base64 encoded credentials forward to the main view controller.
-    func userDidAuthenticate(base64Credentials: String, url: String) {
-        self.globalServerCredentials = base64Credentials
-        self.globalServerURL = url
+    // the Bearer Token and URLs forward to the main view controller.
+    // UPDATED for the Jamf Pro 11.29 Bearer Token flow - see loginWindow.swift
+    func userDidAuthenticate(bearerToken: String, tokenExpiry: Date, baseURL: String, jssResourceURL: String, basicCredentials: String) {
+        self.globalBearerToken = bearerToken
+        self.globalTokenExpiry = tokenExpiry
+        self.globalBaseURL = baseURL
+        self.globalServerURL = jssResourceURL
+        self.globalBasicCredentials = basicCredentials
         verified = true
     }
 
@@ -218,9 +295,11 @@ class ViewController: NSViewController, URLSessionDelegate, DataSentDelegate {
     // These actions are to reset the pre-flight button with the notreadytorun() function
     // If something changes such as group ID or group type/target type
     @IBAction func popGroupType(_ sender: Any) {
+        applyDropDownFontColors()
         notReadyToRun()
     }
     @IBAction func popConvertTo(_ sender: Any) {
+        applyDropDownFontColors()
         notReadyToRun()
     }
     @IBAction func txtIDAction(_ sender: Any) {
