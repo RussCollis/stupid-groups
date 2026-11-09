@@ -11,101 +11,154 @@ import Foundation
 
 public class prepareData {
 
-    // This function returns the data needed for the API call.
-    // It returns endpoint strings for the new Jamf Pro API v1 endpoints.
+    // This function returns the data neededfor the API call. It returns XML data as well as endpoint
+    // and returns it in an array to be parsed later. Technically, I believe the "singular" one is not needed
+    // but I am leaving it in, in case it is needed down the road.
     public func deviceData(deviceType: String, conversionType: String) -> Array<String> {
-        var apiData = ["nil","nil","nil","nil"]
+        var xmlData = ["nil","nil","nil","nil"]
         
         // Logic block to determine what data to send back:
         // Mobile Devices
         if deviceType == "Mobile Device" {
             if conversionType == "Advanced Search" {
-                apiData = ["advanced_mobile_device_search","mobile-device-advanced-searches","mobile_device","mobile-device-advanced-searches"]
+                xmlData = ["advanced_mobile_device_search","mobile_devices","mobile_device","advancedmobiledevicesearches"]
             }
             if conversionType == "Static Group" {
-                apiData = ["mobile_device_group","mobile-device-groups","mobile_device","mobile-device-groups"]
+                xmlData = ["mobile_device_group","mobile_devices","mobile_device","mobiledevicegroups"]
             }
             
         // Computers
         } else if deviceType == "Computer" {
             if conversionType == "Advanced Search" {
-                apiData = ["advanced_computer_search","computer-advanced-searches","computer","computer-advanced-searches"]
+                xmlData = ["advanced_computer_search","computers","computer","advancedcomputersearches"]
             }
             if conversionType == "Static Group" {
-                apiData = ["computer_group","computer-groups","computer","computer-groups"]
+                xmlData = ["computer_group","computers","computer","computergroups"]
             }
 
         // Users
         } else {
             if conversionType == "Advanced Search" {
-                apiData = ["advanced_user_search","user-advanced-searches","user","user-advanced-searches"]
+                xmlData = ["advanced_user_search","users","user","advancedusersearches"]
             }
             if conversionType == "Static Group" {
-                apiData = ["user_group","user-groups","user","user-groups"]
+                xmlData = ["user_group","users","user","usergroups"]
             }
         }
-        return apiData
+        return xmlData
     }
 
-    // Generate a JSON-serializable dictionary which will be sent to the Jamf Pro API v1 to generate the new object.
-    // Pass in all data, and it will determine what is needed based on the conversion type.
-    // This replaces the previous xmlToPost function.
-    public func jsonToPost(newName: String, siteID: String?, criteria: String?, membership: [Int]?, conversionType: String, devicePlural: String) -> Data? {
+    // Generate the XML which will be sent to the API to generate the new object
+    // Pass in all data, and it will determine what is needed based on
+    // the conversion type
+    public func xmlToPost(newName: String, siteID: String, criteria: String, membership: String, conversionType: String, deviceRoot: String, devicePlural: String, deviceSingular: String) -> Data {
         
-        var jsonDict: [String: Any] = [:]
+        var newXMLString = "nil"
+        var displayFields = "nil"
 
-        switch conversionType {
-        case "Advanced Search":
-            // For advanced searches, criteria is expected to be JSON string representing the search criteria.
-            // Decode criteria JSON string into object if possible.
-            var criteriaObject: Any = [:]
-            if let criteria = criteria {
-                if let data = criteria.data(using: .utf8) {
-                    if let obj = try? JSONSerialization.jsonObject(with: data, options: []) {
-                        criteriaObject = obj
-                    } else {
-                        criteriaObject = criteria // fallback to raw string if JSON parse fails
-                    }
-                }
-            }
-            
-            jsonDict = [
-                "name": newName,
-                "criteria": criteriaObject
-            ]
-            // Add site information if provided (new Jamf API uses optional site object)
-            if let siteID = siteID, siteID != "" && siteID.lowercased() != "none" {
-                jsonDict["site"] = ["id": Int(siteID) ?? 0]
-            }
-            
-        case "Static Group":
-            // For static groups, membership is an array of IDs referring to members.
-            jsonDict = [
-                "name": newName,
-                "isSmart": false,
-                devicePlural: membership ?? []
-            ]
-            if let siteID = siteID, siteID != "" && siteID.lowercased() != "none" {
-                jsonDict["site"] = ["id": Int(siteID) ?? 0]
-            }
-            
-        default:
-            // Fallback, empty dictionary
-            jsonDict = [:]
+        // By default, new advanced searches made in Jamf Pro will only display
+        // the name of the object. These XML blocks are to add additional display
+        // fields to make the advanced searches more helpful by default.
+        if devicePlural == "users" {
+            displayFields = """
+            <size>7</size>
+            <display_field>
+            <name>Computers</name>
+            </display_field>
+            <display_field>
+            <name>Email Address</name>
+            </display_field>
+            <display_field>
+            <name>Full Name</name>
+            </display_field>
+            <display_field>
+            <name>Mobile Devices</name>
+            </display_field>
+            <display_field>
+            <name>Phone Number</name>
+            </display_field>
+            <display_field>
+            <name>Position</name>
+            </display_field>
+            <display_field>
+            <name>Username</name>
+            </display_field>
+            """
         }
         
-        // Convert dictionary to JSON data and return
-        if let jsonData = try? JSONSerialization.data(withJSONObject: jsonDict, options: [.prettyPrinted]) {
-            return jsonData
-        } else {
-            NSLog("[ERROR ]: Failed to serialize JSON for POST request")
-            return nil
+        if devicePlural == "mobile_devices" {
+            displayFields = """
+            <size>5</size>
+            <display_field>
+            <name>Asset Tag</name>
+            </display_field>
+            <display_field>
+            <name>Device ID</name>
+            </display_field>
+            <display_field>
+            <name>Display Name</name>
+            </display_field>
+            <display_field>
+            <name>Serial Number</name>
+            </display_field>
+            <display_field>
+            <name>Username</name>
+            </display_field>
+            """
         }
+        
+        if devicePlural == "computers" {
+            displayFields = """
+            <size>5</size>
+            <display_field>
+            <name>Asset Tag</name>
+            </display_field>
+            <display_field>
+            <name>Computer Name</name>
+            </display_field>
+            <display_field>
+            <name>JSS Computer ID</name>
+            </display_field>
+            <display_field>
+            <name>Serial Number</name>
+            </display_field>
+            <display_field>
+            <name>Username</name>
+            </display_field>
+            """
+        }
+        
+        // Build XML for an Advanced Search conversion
+        if conversionType == "Advanced Search" {
+            newXMLString = """
+            <\(deviceRoot)>
+                <name>\(newName)</name>
+                <site>\(siteID)</site>
+                <criteria>\(criteria)</criteria>
+                <display_fields>\(displayFields)</display_fields>
+            </\(deviceRoot)>
+            """
+        }
+
+        // Build XML for a Static Group conversion
+        if conversionType == "Static Group" {
+            newXMLString = """
+            <\(deviceRoot)>
+                <name>\(newName)</name>
+                <site>\(siteID)</site>
+                <is_smart>false</is_smart>
+                <\(devicePlural)>\(membership)</\(devicePlural)>
+            </\(deviceRoot)>
+            """
+        }
+
+        // Convert the XML string to a data type and return it
+        let myData: Data? = newXMLString.data(using: .utf8)
+        return myData!
     }
 
     // Leslie Helou wrote this sweet little function. It parses XML to gather
     // a substring between two specified tags.
-    // Kept for backwards compatibility or XML parsing use elsewhere.
     func parseXML(fullXMLString:String, startTag:String, endTag:String) -> String {
         var rawValue = ""
         if let start = fullXMLString.range(of: startTag),
@@ -119,8 +172,14 @@ public class prepareData {
         return rawValue
     }
     
-    // Remove createAuthURL() as it referenced legacy /activationcode endpoint
-    
+    // Create the URL that is used to verify the credentials against reading activation code
+    public func createAuthURL(url: String) -> URL {
+        let stringURL = "\(url)activationcode"
+        let encodedURL = NSURL(string: stringURL)
+        NSLog("[INFO  ]: AUTH URL CREATED: " + stringURL)
+        return encodedURL! as URL
+    }
+
     // NEW - Create the URL used to request a Bearer Token. Jamf Pro 11.5.0+
     // requires Basic auth to be exchanged for a Bearer Token here BEFORE any
     // Classic API resource (e.g. /JSSResource/...) can be called.
@@ -128,59 +187,57 @@ public class prepareData {
     // (NOT the /JSSResource/ suffixed URL used elsewhere in this class).
     public func createTokenURL(baseURL: String) -> URL {
         let stringURL = "\(baseURL)api/v1/auth/token"
-        guard let encodedURL = NSURL(string: stringURL) else {
-            fatalError("[ERROR ]: Invalid URL string for token endpoint: \(stringURL)")
-        }
+        let encodedURL = NSURL(string: stringURL)
         NSLog("[INFO  ]: TOKEN URL CREATED: " + stringURL)
-        return encodedURL as URL
+        return encodedURL! as URL
+    }
+
+    // NEW - Create the URL used to request an Access Token with API Client
+    // credentials (client ID + client secret). Pass in the BASE server URL only.
+    public func createOAuthTokenURL(baseURL: String) -> URL {
+        let stringURL = "\(baseURL)api/oauth/token"
+        let encodedURL = NSURL(string: stringURL)
+        NSLog("[INFO  ]: OAUTH TOKEN URL CREATED: " + stringURL)
+        return encodedURL! as URL
     }
 
     // NEW - Create the URL used to invalidate a Bearer Token on app quit.
     // Pass in the BASE server URL only, as with createTokenURL above.
     public func createInvalidateURL(baseURL: String) -> URL {
         let stringURL = "\(baseURL)api/v1/auth/invalidate-token"
-        guard let encodedURL = NSURL(string: stringURL) else {
-            fatalError("[ERROR ]: Invalid URL string for invalidate-token endpoint: \(stringURL)")
-        }
+        let encodedURL = NSURL(string: stringURL)
         NSLog("[INFO  ]: INVALIDATE URL CREATED: " + stringURL)
-        return encodedURL as URL
+        return encodedURL! as URL
     }
     
-    // Create the URL that is used to gather the information from an existing smart group or static group
-    // Uses Jamf Pro API v1 endpoints.
+    // Create the URL that is used to gather the information from an existing smart group
     public func createGETURL(url: String, deviceType: String, id: String) -> URL {
-        var endpoint = ""
+        var endpoint = "none"
         if deviceType == "Mobile Device" {
-            endpoint = "mobile-device-groups"
+            endpoint = "mobiledevicegroups"
         } else if deviceType == "Computer" {
-            endpoint = "computer-groups"
+            endpoint = "computergroups"
         } else {
-            endpoint = "user-groups"
+            endpoint = "usergroups"
         }
-        let stringURL = "\(url)api/v1/\(endpoint)/\(id)"
-        guard let encodedURL = NSURL(string: stringURL) else {
-            fatalError("[ERROR ]: Invalid GET URL: \(stringURL)")
-        }
+        let stringURL = "\(url)\(endpoint)/id/\(id)"
+        let encodedURL = NSURL(string: stringURL)
         NSLog("[INFO  ]: GET URL CREATED: " + stringURL)
-        return encodedURL as URL
+        return encodedURL! as URL
+    }
+
+    // Create the URL that is used to delete the original smart group after conversion.
+    // This is the same resource URL used to read the group.
+    public func createDELETEURL(url: String, deviceType: String, id: String) -> URL {
+        return createGETURL(url: url, deviceType: deviceType, id: id)
     }
 
     // Create the URL that is used to create the new group or advanced search
-    // Uses Jamf Pro API v1 endpoints for POST.
-    public func createPOSTURL(url: String, deviceType: String) -> URL {
-        var endpoint = ""
-        if deviceType == "Mobile Device" {
-            endpoint = "mobile-device-groups"
-        } else if deviceType == "Computer" {
-            endpoint = "computer-groups"
-        } else {
-            endpoint = "user-groups"
-        }
-        let stringURL = "\(url)api/v1/\(endpoint)"
-        guard let encodedURL = NSURL(string: stringURL) else {
-            fatalError("[ERROR ]: Invalid POST URL: \(stringURL)")
-        }
+    public func createPOSTURL(url: String, endpoint: String) -> URL {
+        let stringURL = "\(url)\(endpoint)/id/0"
+        let encodedURL = NSURL(string: stringURL)
         NSLog("[INFO  ]: POST URL CREATED: " + stringURL)
-        return encodedURL as URL
+        return encodedURL! as URL
     }
 }
+

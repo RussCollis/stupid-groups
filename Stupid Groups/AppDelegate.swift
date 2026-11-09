@@ -30,8 +30,7 @@ struct StupidGroupsApp: App {
                     NSApplication.shared.orderFrontStandardAboutPanel(
                         options: [
                             NSApplication.AboutPanelOptionKey.applicationName: "Stupid Groups",
-                            NSApplication.AboutPanelOptionKey.version: "1.2",
-                            NSApplication.AboutPanelOptionKey.credits: "Forked and updated by Russell Collis, 2026"
+                            NSApplication.AboutPanelOptionKey.credits: aboutCredits
                         ]
                     )
                 }
@@ -51,6 +50,32 @@ struct StupidGroupsApp: App {
                 }
             }
         }
+    }
+
+    /// Credits for the About panel. The panel requires an NSAttributedString
+    /// (a plain String is ignored), and this lets the original repo be a clickable link.
+    private var aboutCredits: NSAttributedString {
+        let repoURL = "https://github.com/mike-levenick/stupid-groups"
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+
+        let baseAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraph
+        ]
+
+        let credits = NSMutableAttributedString(string: "Updated from\n", attributes: baseAttributes)
+
+        var linkAttributes = baseAttributes
+        if let url = URL(string: repoURL) {
+            linkAttributes[.link] = url
+        }
+        credits.append(NSAttributedString(string: repoURL, attributes: linkAttributes))
+
+        credits.append(NSAttributedString(string: "\n\nUpdates by Russell Collis", attributes: baseAttributes))
+        return credits
     }
 }
 

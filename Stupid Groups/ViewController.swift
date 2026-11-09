@@ -66,6 +66,8 @@ public struct ConverterView: View {
     @State private var isReadyToConvert: Bool = false
     @State private var isProcessing: Bool = false
     @State private var logs: [LogEntry] = []
+    @State private var deleteOriginalAfterConversion: Bool = false
+    @State private var showDeleteConfirmation: Bool = false
 
     private let deviceOptions = ["Computer", "Mobile Device", "User"]
     private let conversionOptions = ["Static Group", "Advanced Search"]
@@ -248,7 +250,30 @@ public struct ConverterView: View {
                                         .fill(Color(nsColor: .windowBackgroundColor))
                                 )
 
-                                Button(action: runConvertGroup) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Toggle(isOn: $deleteOriginalAfterConversion) {
+                                        Text("Delete original smart group after conversion")
+                                            .font(.subheadline)
+                                    }
+                                    .toggleStyle(.checkbox)
+                                    .accessibilityHint("When enabled, the original smart group is permanently deleted once the new \(conversionType.lowercased()) is created.")
+
+                                    if deleteOriginalAfterConversion {
+                                        Text("The original group is only deleted if the conversion succeeds. Jamf Pro will refuse if it is still used by policies, profiles, or other scoping.")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .padding(.leading, 20)
+                                    }
+                                }
+
+                                Button(action: {
+                                    if deleteOriginalAfterConversion {
+                                        showDeleteConfirmation = true
+                                    } else {
+                                        runConvertGroup()
+                                    }
+                                }) {
                                     HStack(spacing: 8) {
                                         if isProcessing {
                                             ProgressView()
@@ -267,6 +292,17 @@ public struct ConverterView: View {
                                 .tint(.green)
                                 .controlSize(.large)
                                 .disabled(isProcessing)
+                                .confirmationDialog(
+                                    "Delete \"\(smartGroupName)\" after converting?",
+                                    isPresented: $showDeleteConfirmation
+                                ) {
+                                    Button("Convert and Delete Original", role: .destructive) {
+                                        runConvertGroup()
+                                    }
+                                    Button("Cancel", role: .cancel) {}
+                                } message: {
+                                    Text("The original smart group (ID \(groupID.trimmingCharacters(in: .whitespacesAndNewlines))) will be permanently deleted from Jamf Pro once \"\(newName)\" is created. This cannot be undone.")
+                                }
                             }
                             .padding(16)
                             .background(
@@ -444,6 +480,9 @@ public struct ConverterView: View {
         isProcessing = true
         let targetName = newName
         let targetConversion = conversionType
+        let originalID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let originalName = smartGroupName
+        let shouldDeleteOriginal = deleteOriginalAfterConversion
 
         appendLog(type: .info, message: "Submitting data to create new \(targetConversion.lowercased()) \"\(targetName)\"...")
 
@@ -464,18 +503,38 @@ public struct ConverterView: View {
 
             let postURL = prepareData().createPOSTURL(url: authSession.serverURL, endpoint: deviceData[3])
             let postResponse = API().post(postToken: authSession.bearerToken, postURL: postURL, postBody: postData)
+            let conversionSucceeded = postResponse.contains("<id>")
+
+            // Only remove the original smart group once the replacement exists
+            var deleteResult: (isSuccess: Bool, response: String)? = nil
+            if conversionSucceeded && shouldDeleteOriginal {
+                authSession.ensureValidToken()
+                let deleteURL = prepareData().createDELETEURL(url: authSession.serverURL, deviceType: deviceType, id: originalID)
+                deleteResult = API().delete(deleteToken: authSession.bearerToken, deleteURL: deleteURL)
+            }
 
             DispatchQueue.main.async {
                 isProcessing = false
                 isReadyToConvert = false
 
-                if postResponse.contains("<id>") {
+                if conversionSucceeded {
                     let newID = prepareData().parseXML(fullXMLString: postResponse, startTag: "id>", endTag: "</id>")
                     appendLog(type: .success, message: "Conversion Successful!")
                     appendLog(
                         type: .info,
                         message: "Created \(targetConversion) \"\(targetName)\" with ID #\(newID)."
                     )
+
+                    if let deleteResult = deleteResult {
+                        if deleteResult.isSuccess {
+                            appendLog(type: .success, message: "Deleted original smart group \"\(originalName)\" (ID #\(originalID)).")
+                        } else {
+                            appendLog(
+                                type: .error,
+                                message: "Could not delete original smart group \"\(originalName)\" (ID #\(originalID)). It may still be in use by policies, profiles, or other scoping. The new \(targetConversion.lowercased()) was created successfully.\n\(deleteResult.response)"
+                            )
+                        }
+                    }
                 } else if postResponse.contains("Error: Duplicate name") {
                     appendLog(
                         type: .error,

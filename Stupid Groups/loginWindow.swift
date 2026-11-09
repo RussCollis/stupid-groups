@@ -12,6 +12,17 @@
 import SwiftUI
 import Foundation
 
+// MARK: - Authentication Method
+
+/// How the user signs in to Jamf Pro: a regular admin account, or an
+/// API Client (client ID + client secret) created under API Roles and Clients.
+public enum AuthMethod: String, CaseIterable, Identifiable {
+    case userAccount = "User Account"
+    case apiClient = "API Client"
+
+    public var id: String { rawValue }
+}
+
 // MARK: - AuthSession Observable Object
 
 public class AuthSession: ObservableObject {
@@ -24,10 +35,19 @@ public class AuthSession: ObservableObject {
     @Published public var isAuthenticating: Bool = false
     @Published public var authErrorMessage: String? = nil
 
+    // Method used for the current session, plus API Client credentials
+    // kept ONLY in-memory for silent token refresh
+    public private(set) var activeAuthMethod: AuthMethod = .userAccount
+    private var clientID: String = ""
+    private var clientSecret: String = ""
+
     // Form inputs
+    @Published public var authMethod: AuthMethod = .userAccount
     @Published public var inputURL: String = ""
     @Published public var inputUsername: String = ""
     @Published public var inputPassword: String = ""
+    @Published public var inputClientID: String = ""
+    @Published public var inputClientSecret: String = ""
     @Published public var rememberMe: Bool = true
 
     private let defaults = UserDefaults.standard
@@ -45,6 +65,13 @@ public class AuthSession: ObservableObject {
         if let savedURL = defaults.string(forKey: "InstanceURL") {
             inputURL = savedURL
         }
+        if let savedClientID = defaults.string(forKey: "ClientID") {
+            inputClientID = savedClientID
+        }
+        if let savedMethod = defaults.string(forKey: "AuthMethod"),
+           let method = AuthMethod(rawValue: savedMethod) {
+            authMethod = method
+        }
         if defaults.object(forKey: "Remember") != nil {
             rememberMe = defaults.bool(forKey: "Remember")
         }
@@ -54,8 +81,12 @@ public class AuthSession: ObservableObject {
         inputUsername = ""
         inputURL = ""
         inputPassword = ""
+        inputClientID = ""
+        inputClientSecret = ""
         defaults.removeObject(forKey: "UserName")
         defaults.removeObject(forKey: "InstanceURL")
+        defaults.removeObject(forKey: "ClientID")
+        defaults.removeObject(forKey: "AuthMethod")
         defaults.set(false, forKey: "Remember")
         defaults.synchronize()
         if let bundleID = Bundle.main.bundleIdentifier {
@@ -71,8 +102,11 @@ public class AuthSession: ObservableObject {
         bearerToken = ""
         tokenExpiry = nil
         basicCredentials = ""
+        clientID = ""
+        clientSecret = ""
         isAuthenticated = false
         inputPassword = ""
+        inputClientSecret = ""
         authErrorMessage = nil
     }
 
@@ -92,18 +126,27 @@ public class AuthSession: ObservableObject {
         guard let expiry = tokenExpiry else { return }
         let remaining = expiry.timeIntervalSinceNow
 
-        if remaining < 60 && !basicCredentials.isEmpty && !baseURL.isEmpty {
-            NSLog("[AUTH  ]: Bearer Token expiring soon (\(Int(remaining))s remaining) - refreshing...")
-            let tokenURL = prepareData().createTokenURL(baseURL: baseURL)
-            if let refreshed = API().getBearerToken(basicCredentials: basicCredentials, tokenURL: tokenURL) {
-                DispatchQueue.main.async {
-                    self.bearerToken = refreshed.token
-                    self.tokenExpiry = refreshed.expires
-                }
-                NSLog("[AUTH  ]: Bearer Token refreshed successfully.")
-            } else {
-                NSLog("[ERROR ]: Failed to refresh Bearer Token. Subsequent calls may fail with 401.")
+        guard remaining < 60, !baseURL.isEmpty else { return }
+
+        NSLog("[AUTH  ]: Bearer Token expiring soon (\(Int(remaining))s remaining) - refreshing...")
+        let refreshed: (token: String, expires: Date)?
+        switch activeAuthMethod {
+        case .userAccount:
+            guard !basicCredentials.isEmpty else { return }
+            refreshed = API().getBearerToken(basicCredentials: basicCredentials, tokenURL: prepareData().createTokenURL(baseURL: baseURL))
+        case .apiClient:
+            guard !clientID.isEmpty, !clientSecret.isEmpty else { return }
+            refreshed = API().getOAuthToken(clientID: clientID, clientSecret: clientSecret, tokenURL: prepareData().createOAuthTokenURL(baseURL: baseURL))
+        }
+
+        if let refreshed = refreshed {
+            DispatchQueue.main.async {
+                self.bearerToken = refreshed.token
+                self.tokenExpiry = refreshed.expires
             }
+            NSLog("[AUTH  ]: Bearer Token refreshed successfully.")
+        } else {
+            NSLog("[ERROR ]: Failed to refresh Bearer Token. Subsequent calls may fail with 401.")
         }
     }
 
@@ -111,18 +154,33 @@ public class AuthSession: ObservableObject {
         let cleanedURL = inputURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanedUser = inputUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanedPass = inputPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedClientID = inputClientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedClientSecret = inputClientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+        let method = authMethod
 
         guard !cleanedURL.isEmpty else {
             authErrorMessage = "Please enter your Jamf Pro server URL or Jamf Cloud instance name."
             return
         }
-        guard !cleanedUser.isEmpty else {
-            authErrorMessage = "Please enter an administrator username."
-            return
-        }
-        guard !cleanedPass.isEmpty else {
-            authErrorMessage = "Please enter your password."
-            return
+        switch method {
+        case .userAccount:
+            guard !cleanedUser.isEmpty else {
+                authErrorMessage = "Please enter an administrator username."
+                return
+            }
+            guard !cleanedPass.isEmpty else {
+                authErrorMessage = "Please enter your password."
+                return
+            }
+        case .apiClient:
+            guard !cleanedClientID.isEmpty else {
+                authErrorMessage = "Please enter your API Client ID."
+                return
+            }
+            guard !cleanedClientSecret.isEmpty else {
+                authErrorMessage = "Please enter your API Client Secret."
+                return
+            }
         }
 
         authErrorMessage = nil
@@ -147,21 +205,27 @@ public class AuthSession: ObservableObject {
             }
             let resolvedServerURL = "\(resolvedBaseURL)JSSResource/"
 
-            let concat = "\(cleanedUser):\(cleanedPass)"
-            guard let utf8 = concat.data(using: .utf8) else {
-                DispatchQueue.main.async {
-                    self.isAuthenticating = false
-                    self.authErrorMessage = "Failed to encode credentials."
-                }
-                return
-            }
-            let encodedCreds = utf8.base64EncodedString()
+            // Exchange the entered credentials for a Bearer Token
+            var encodedCreds = ""
+            let tokenResult: (token: String, expires: Date)?
+            let tokenFailureMessage: String
 
-            let tokenURL = prepareData().createTokenURL(baseURL: resolvedBaseURL)
-            guard let tokenResult = API().getBearerToken(basicCredentials: encodedCreds, tokenURL: tokenURL) else {
+            switch method {
+            case .userAccount:
+                encodedCreds = Data("\(cleanedUser):\(cleanedPass)".utf8).base64EncodedString()
+                let tokenURL = prepareData().createTokenURL(baseURL: resolvedBaseURL)
+                tokenResult = API().getBearerToken(basicCredentials: encodedCreds, tokenURL: tokenURL)
+                tokenFailureMessage = "Unable to obtain Bearer Token from \(resolvedBaseURL)api/v1/auth/token.\nPlease check your username, password, and URL."
+            case .apiClient:
+                let tokenURL = prepareData().createOAuthTokenURL(baseURL: resolvedBaseURL)
+                tokenResult = API().getOAuthToken(clientID: cleanedClientID, clientSecret: cleanedClientSecret, tokenURL: tokenURL)
+                tokenFailureMessage = "Unable to obtain Access Token from \(resolvedBaseURL)api/oauth/token.\nPlease check your Client ID, Client Secret, and URL, and confirm the API Client is enabled."
+            }
+
+            guard let tokenResult = tokenResult else {
                 DispatchQueue.main.async {
                     self.isAuthenticating = false
-                    self.authErrorMessage = "Unable to obtain Bearer Token from \(resolvedBaseURL)api/v1/auth/token.\nPlease check your username, password, and URL."
+                    self.authErrorMessage = tokenFailureMessage
                 }
                 return
             }
@@ -180,16 +244,29 @@ public class AuthSession: ObservableObject {
                     self.bearerToken = tokenResult.token
                     self.tokenExpiry = tokenResult.expires
                     self.basicCredentials = encodedCreds
+                    self.activeAuthMethod = method
+                    if method == .apiClient {
+                        self.clientID = cleanedClientID
+                        self.clientSecret = cleanedClientSecret
+                    }
                     self.isAuthenticated = true
                     self.authErrorMessage = nil
 
+                    // The password and client secret are never persisted
                     if self.rememberMe {
-                        self.defaults.set(cleanedUser, forKey: "UserName")
+                        if method == .userAccount {
+                            self.defaults.set(cleanedUser, forKey: "UserName")
+                        } else {
+                            self.defaults.set(cleanedClientID, forKey: "ClientID")
+                        }
                         self.defaults.set(cleanedURL, forKey: "InstanceURL")
+                        self.defaults.set(method.rawValue, forKey: "AuthMethod")
                         self.defaults.set(true, forKey: "Remember")
                     } else {
                         self.defaults.removeObject(forKey: "UserName")
+                        self.defaults.removeObject(forKey: "ClientID")
                         self.defaults.removeObject(forKey: "InstanceURL")
+                        self.defaults.removeObject(forKey: "AuthMethod")
                         self.defaults.set(false, forKey: "Remember")
                     }
                     self.defaults.synchronize()
@@ -199,7 +276,9 @@ public class AuthSession: ObservableObject {
                     } else if authResponse.statusCode == 403 {
                         self.authErrorMessage = "Permission Denied: Your Jamf Pro API role does not have access to smart/static groups or searches via the API.\nPlease contact your Jamf administrator to update your API role permissions."
                     } else if authResponse.statusCode == 401 {
-                        self.authErrorMessage = "Unauthorized: Invalid credentials or insufficient API permissions.\nPlease verify your username, password, and API role permissions."
+                        self.authErrorMessage = method == .userAccount
+                            ? "Unauthorized: Invalid credentials or insufficient API permissions.\nPlease verify your username, password, and API role permissions."
+                            : "Unauthorized: Invalid credentials or insufficient API permissions.\nPlease verify your Client ID, Client Secret, and the API Role assigned to the client."
                     } else {
                         self.authErrorMessage = "API Access Error: \(authResponse.errorDescription)\nPlease ensure your credentials have the necessary Jamf Pro API role permissions."
                     }
@@ -389,20 +468,47 @@ public struct LoginView: View {
                         text: $authSession.inputURL
                     )
 
-                    AccessibleInputBox(
-                        title: "Username",
-                        systemImage: "person.fill",
-                        placeholder: "Administrator Username",
-                        text: $authSession.inputUsername
-                    )
+                    Picker("Sign in with", selection: $authSession.authMethod) {
+                        ForEach(AuthMethod.allCases) { method in
+                            Text(method.rawValue).tag(method)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityHint("Choose whether to sign in with a user account or API Client credentials.")
 
-                    AccessibleInputBox(
-                        title: "Password",
-                        systemImage: "key.fill",
-                        placeholder: "Password",
-                        text: $authSession.inputPassword,
-                        isSecure: true
-                    )
+                    switch authSession.authMethod {
+                    case .userAccount:
+                        AccessibleInputBox(
+                            title: "Username",
+                            systemImage: "person.fill",
+                            placeholder: "Administrator Username",
+                            text: $authSession.inputUsername
+                        )
+
+                        AccessibleInputBox(
+                            title: "Password",
+                            systemImage: "key.fill",
+                            placeholder: "Password",
+                            text: $authSession.inputPassword,
+                            isSecure: true
+                        )
+                    case .apiClient:
+                        AccessibleInputBox(
+                            title: "Client ID",
+                            systemImage: "person.badge.key.fill",
+                            placeholder: "API Client ID",
+                            hint: "Found in Settings > System > API Roles and Clients.",
+                            text: $authSession.inputClientID
+                        )
+
+                        AccessibleInputBox(
+                            title: "Client Secret",
+                            systemImage: "key.fill",
+                            placeholder: "API Client Secret",
+                            text: $authSession.inputClientSecret,
+                            isSecure: true
+                        )
+                    }
                     
                     // Updated Permissions Info Box
                     VStack(alignment: .leading, spacing: 6) {
@@ -432,7 +538,7 @@ public struct LoginView: View {
                     // Options
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle(isOn: $authSession.rememberMe) {
-                            Text("Remember server and username")
+                            Text(authSession.authMethod == .userAccount ? "Remember server and username" : "Remember server and Client ID")
                                 .font(.subheadline)
                         }
                         .toggleStyle(.checkbox)

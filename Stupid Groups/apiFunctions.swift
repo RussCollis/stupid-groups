@@ -12,14 +12,12 @@
 //  Classic API call (GET/POST/PUT/DELETE) must use that Bearer Token.
 //  See: https://developer.jamf.com/jamf-pro/docs/classic-api-authentication-changes
 //
-// UPDATED: Uses new Jamf Pro API endpoints and JSON payloads instead of Classic API/XML.
-//
 
 import Foundation
 
 public class API {
 
-    // This function can be used for any GET against the Jamf Pro API.
+    // This function can be used for any GET against the Classic API.
     // Pass in a valid Bearer Token (NOT base64 Basic credentials) and a URL.
     // The token is inserted into the Authorization header.
     public func get(getToken: String, getURL: URL) -> String {
@@ -30,10 +28,8 @@ public class API {
         let request = NSMutableURLRequest(url: getURL)
         request.httpMethod = "GET"
         let configuration = URLSessionConfiguration.default
-
-        // For Jamf Pro API endpoints like /api/v1/computer-groups, /api/v1/mobile-device-groups, /api/v1/user-groups
-        // use JSON headers and Bearer token authentication
-        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(getToken)", "Content-Type" : "application/json", "Accept" : "application/json"]
+        // Bearer Token replaces Basic auth - required as of Jamf Pro 11.5.0
+        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(getToken)", "Content-Type" : "text/xml", "Accept" : "text/xml"]
         let session = Foundation.URLSession(configuration: configuration)
 
         // Completion handler. This is what ensures that the response is good/bad
@@ -66,11 +62,9 @@ public class API {
         return stringToReturn
     }
 
-    // This function can be used for any POST against the Jamf Pro API.
+    // This function can be used for any POST against the Classic API.
     // Pass in a valid Bearer Token (NOT base64 Basic credentials) and a URL.
     // The token is inserted into the Authorization header.
-    // Note: Replace XML payload with JSON payload as required by the new Jamf API.
-    // JSON encoding logic to be implemented as needed.
     public func post(postToken: String, postURL: URL, postBody: Data) -> String {
 
         // Declare a variable to be populated, and set up the HTTP Request with headers
@@ -80,10 +74,8 @@ public class API {
         request.httpMethod = "POST"
         request.httpBody = postBody
         let configuration = URLSessionConfiguration.default
-
-        // For Jamf Pro API endpoints like /api/v1/computer-groups, /api/v1/mobile-device-groups, /api/v1/user-groups
-        // use JSON headers and Bearer token authentication
-        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(postToken)", "Content-Type" : "application/json", "Accept" : "application/json"]
+        // Bearer Token replaces Basic auth - required as of Jamf Pro 11.5.0
+        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(postToken)", "Content-Type" : "text/xml", "Accept" : "text/xml"]
         let session = Foundation.URLSession(configuration: configuration)
 
         // Completion handler. This is what ensures that the response is good/bad
@@ -111,9 +103,46 @@ public class API {
                 semaphore.signal()
             }
         })
-        task.resume() // Kick off the actual POST here
+        task.resume() // Kick off the actual GET here
         semaphore.wait()
         return stringToReturn
+    }
+
+    // This function can be used for any DELETE against the Classic API.
+    // Pass in a valid Bearer Token and the URL of the object to delete.
+    // Returns whether the delete succeeded, along with the response body
+    // (Jamf Pro explains failures here, e.g. when a group is still in use).
+    public func delete(deleteToken: String, deleteURL: URL) -> (isSuccess: Bool, response: String) {
+
+        var success = false
+        var stringToReturn = "nil"
+        let semaphore = DispatchSemaphore(value: 0)
+        let request = NSMutableURLRequest(url: deleteURL)
+        request.httpMethod = "DELETE"
+        let configuration = URLSessionConfiguration.default
+        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(deleteToken)", "Accept" : "text/xml"]
+        let session = Foundation.URLSession(configuration: configuration)
+
+        let task = session.dataTask(with: request as URLRequest, completionHandler: {
+            (data, response, error) -> Void in
+            if let error = error {
+                NSLog("[FATAL ]: " + error.localizedDescription)
+                stringToReturn = String("[FATAL ]: " + error.localizedDescription)
+            } else if let httpResponse = response as? HTTPURLResponse {
+                stringToReturn = String(decoding: data ?? Data(), as: UTF8.self)
+                if httpResponse.statusCode >= 199 && httpResponse.statusCode <= 299 {
+                    success = true
+                    NSLog("[INFO  ]: Successful DELETE completed by StupidGroups.app")
+                } else {
+                    NSLog("[ERROR ]: Failed DELETE completed by StupidGroups.app")
+                }
+                NSLog(httpResponse.description)
+            }
+            semaphore.signal()
+        })
+        task.resume() // Kick off the actual DELETE here
+        semaphore.wait()
+        return (success, stringToReturn)
     }
 
     // NEW - Requests a Bearer Token from the Jamf Pro API.
@@ -180,6 +209,64 @@ public class API {
                 }
             } catch {
                 NSLog("[ERROR ]: Failed to parse Bearer Token JSON response")
+            }
+            semaphore.signal()
+        })
+        task.resume()
+        semaphore.wait()
+        return tokenResult
+    }
+
+    // NEW - Requests an Access Token using Jamf Pro API Client credentials
+    // (Settings > System > API Roles and Clients). Pass in the client ID,
+    // client secret, and the full OAuth endpoint URL ({baseURL}api/oauth/token).
+    //
+    // Returns a tuple of (token, expires) on success, or nil on failure.
+    // Jamf Pro returns "expires_in" as a number of seconds rather than a timestamp.
+    public func getOAuthToken(clientID: String, clientSecret: String, tokenURL: URL) -> (token: String, expires: Date)? {
+
+        var tokenResult: (token: String, expires: Date)? = nil
+        let semaphore = DispatchSemaphore(value: 0)
+        let request = NSMutableURLRequest(url: tokenURL)
+        request.httpMethod = "POST"
+
+        // The OAuth endpoint expects a form-encoded body, so each value is percent-encoded
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        let encodedID = clientID.addingPercentEncoding(withAllowedCharacters: allowed) ?? clientID
+        let encodedSecret = clientSecret.addingPercentEncoding(withAllowedCharacters: allowed) ?? clientSecret
+        request.httpBody = "grant_type=client_credentials&client_id=\(encodedID)&client_secret=\(encodedSecret)".data(using: .utf8)
+
+        let configuration = URLSessionConfiguration.default
+        configuration.httpAdditionalHeaders = ["Content-Type" : "application/x-www-form-urlencoded", "Accept" : "application/json"]
+        let session = Foundation.URLSession(configuration: configuration)
+
+        let task = session.dataTask(with: request as URLRequest, completionHandler: {
+            (data, response, error) -> Void in
+
+            if let error = error {
+                NSLog("[FATAL ]: " + error.localizedDescription)
+                semaphore.signal()
+                return
+            }
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode >= 199 && httpResponse.statusCode <= 299,
+                  let data = data else {
+                NSLog("[ERROR ]: Failed to obtain Access Token from /api/oauth/token")
+                semaphore.signal()
+                return
+            }
+
+            // Jamf Pro returns: { "access_token": "...", "expires_in": 1799, "token_type": "Bearer", ... }
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let token = json["access_token"] as? String {
+                let lifetime = (json["expires_in"] as? NSNumber)?.doubleValue ?? (25 * 60)
+                let expiry = Date().addingTimeInterval(lifetime)
+                tokenResult = (token: token, expires: expiry)
+                NSLog("[INFO  ]: Access Token obtained via API Client, expires \(expiry)")
+            } else {
+                NSLog("[ERROR ]: Access Token response did not contain expected JSON fields")
             }
             semaphore.signal()
         })
