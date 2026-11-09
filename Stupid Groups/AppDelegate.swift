@@ -30,7 +30,8 @@ struct StupidGroupsApp: App {
                     NSApplication.shared.orderFrontStandardAboutPanel(
                         options: [
                             NSApplication.AboutPanelOptionKey.applicationName: "Stupid Groups",
-                            NSApplication.AboutPanelOptionKey.version: "1.2"
+                            NSApplication.AboutPanelOptionKey.version: "1.2",
+                            NSApplication.AboutPanelOptionKey.credits: "Forked and updated by Russell Collis, 2026"
                         ]
                     )
                 }
@@ -67,3 +68,4 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 }
+
