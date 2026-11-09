@@ -12,12 +12,14 @@
 //  Classic API call (GET/POST/PUT/DELETE) must use that Bearer Token.
 //  See: https://developer.jamf.com/jamf-pro/docs/classic-api-authentication-changes
 //
+// UPDATED: Uses new Jamf Pro API endpoints and JSON payloads instead of Classic API/XML.
+//
 
 import Foundation
 
 public class API {
 
-    // This function can be used for any GET against the Classic API.
+    // This function can be used for any GET against the Jamf Pro API.
     // Pass in a valid Bearer Token (NOT base64 Basic credentials) and a URL.
     // The token is inserted into the Authorization header.
     public func get(getToken: String, getURL: URL) -> String {
@@ -28,8 +30,10 @@ public class API {
         let request = NSMutableURLRequest(url: getURL)
         request.httpMethod = "GET"
         let configuration = URLSessionConfiguration.default
-        // Bearer Token replaces Basic auth - required as of Jamf Pro 11.5.0
-        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(getToken)", "Content-Type" : "text/xml", "Accept" : "text/xml"]
+
+        // For Jamf Pro API endpoints like /api/v1/computer-groups, /api/v1/mobile-device-groups, /api/v1/user-groups
+        // use JSON headers and Bearer token authentication
+        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(getToken)", "Content-Type" : "application/json", "Accept" : "application/json"]
         let session = Foundation.URLSession(configuration: configuration)
 
         // Completion handler. This is what ensures that the response is good/bad
@@ -62,9 +66,11 @@ public class API {
         return stringToReturn
     }
 
-    // This function can be used for any POST against the Classic API.
+    // This function can be used for any POST against the Jamf Pro API.
     // Pass in a valid Bearer Token (NOT base64 Basic credentials) and a URL.
     // The token is inserted into the Authorization header.
+    // Note: Replace XML payload with JSON payload as required by the new Jamf API.
+    // JSON encoding logic to be implemented as needed.
     public func post(postToken: String, postURL: URL, postBody: Data) -> String {
 
         // Declare a variable to be populated, and set up the HTTP Request with headers
@@ -74,8 +80,10 @@ public class API {
         request.httpMethod = "POST"
         request.httpBody = postBody
         let configuration = URLSessionConfiguration.default
-        // Bearer Token replaces Basic auth - required as of Jamf Pro 11.5.0
-        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(postToken)", "Content-Type" : "text/xml", "Accept" : "text/xml"]
+
+        // For Jamf Pro API endpoints like /api/v1/computer-groups, /api/v1/mobile-device-groups, /api/v1/user-groups
+        // use JSON headers and Bearer token authentication
+        configuration.httpAdditionalHeaders = ["Authorization" : "Bearer \(postToken)", "Content-Type" : "application/json", "Accept" : "application/json"]
         let session = Foundation.URLSession(configuration: configuration)
 
         // Completion handler. This is what ensures that the response is good/bad
@@ -103,7 +111,7 @@ public class API {
                 semaphore.signal()
             }
         })
-        task.resume() // Kick off the actual GET here
+        task.resume() // Kick off the actual POST here
         semaphore.wait()
         return stringToReturn
     }

@@ -5,308 +5,564 @@
 //  Created by Michael Levenick on 1/21/19.
 //  Copyright © 2019 Michael Levenick. All rights reserved.
 //
-//  Updated by Russell Collis on 19/06/2026 to fix authentication for
-//  Jamf Pro 11.29. The app now stores a Bearer Token (instead of base64
-//  Basic credentials) and uses it for every Classic API call. Because
-//  Jamf Pro Bearer Tokens are short-lived (30 minutes by default), a
-//  small ensureValidToken() check runs before every GET/POST and silently
-//  re-requests a fresh token if fewer than 60 seconds remain - mirroring
-//  the token-refresh pattern used elsewhere in KPMG's Jamf tooling.
+//  Updated by Russell Collis to modernize to native SwiftUI with
+//  accessible text boxes, colors, and design.
 //
 
-import Cocoa
+import SwiftUI
+import AppKit
 
-class ViewController: NSViewController, URLSessionDelegate, DataSentDelegate {
-    
-    // Declare Variables
-    // Many of these are declared globally so they can be easily passed from function to function
-    var globalBaseURL: String!          // e.g. https://instance.jamfcloud.com/   (used for token requests)
-    var globalServerURL: String!        // e.g. https://instance.jamfcloud.com/JSSResource/  (used for Classic API)
-    var globalBearerToken: String!      // current valid Bearer Token
-    var globalTokenExpiry: Date!        // when globalBearerToken expires
-    var globalBasicCredentials: String! // base64 "user:pass" - kept ONLY in memory, used to silently refresh the token
-    var verified = false
-    var globalHTTPFunction: String!
-    var myURL: URL!
-    var globalDebug = "off"
-    var smartGroupCriteria: String!
-    var smartGroupName: String!
-    var newName: String!
-    var siteID: String!
-    var smartGroupMembership: String!
-    var globalSmartGroupXML: String!
-    @IBOutlet weak var txtPrefix: NSTextField!
+// MARK: - Log Entry Models
 
+public enum LogType: Equatable {
+    case info
+    case success
+    case error
+    case header
+}
 
-    // Declare outlets for use in the view
-    @IBOutlet weak var txtGroupID: NSTextField!
-    @IBOutlet weak var popConvertTo: NSPopUpButton!
-    @IBOutlet weak var popDeviceType: NSPopUpButton!
-    @IBOutlet weak var btnPostOutlet: NSButton!
-    @IBOutlet weak var btnGetOutlet: NSButton!
-    @IBOutlet weak var txtMainWrapper: NSScrollView!
-    @IBOutlet var txtMain: NSTextView!
+public struct LogEntry: Identifiable, Equatable {
+    public let id = UUID()
+    public let timestamp: Date = Date()
+    public let type: LogType
+    public let message: String
+}
 
-    // Prepare the segue for the sheet view of the login window to appear
-    override func prepare(for segue: NSStoryboardSegue, sender: Any?) {
-        if segue.identifier == "segueLogin" {
-            let loginWindow: loginWindow = segue.destinationController as! loginWindow
-            loginWindow.delegateAuth = self
-        }
-    }
+// MARK: - Main Content View
 
-    // Print some welcome messaging upon loading the view
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        preferredContentSize = NSSize(width: 383, height: 420) // Limits resizing of the window
-        applyDropDownFontColors()
-        printString(header: true, error: false, green: false, fixedPoint: false, lineBreakAfter: true, message: "Welcome to Stupid Groups v1.1")
-        printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "\nSometimes your groups get too smart.\n\nStupid Groups is here to help.\n\nConvert groups that rarely change membership to Static Groups, and convert compliance reporting groups that aren't used for scoping to Advanced Searches.\n\nEnter your data above and run a Pre-Flight Check to begin.\n")
+public struct ContentView: View {
+    @EnvironmentObject var authSession: AuthSession
 
-        // NEW - Best-effort Bearer Token invalidation when the app quits.
-        // Tokens expire on their own after 30 minutes regardless, so failure
-        // here is harmless - this is just good housekeeping.
-        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { [weak self] _ in
-            guard let self = self, let token = self.globalBearerToken, let base = self.globalBaseURL else { return }
-            let invalidateURL = prepareData().createInvalidateURL(baseURL: base)
-            API().invalidateToken(token: token, invalidateURL: invalidateURL)
-        }
-    }
-
-    // Trigger the actual sheet segue upon the view fully appearing
-    // It seems to work better here than in viewDidLoad().
-    override func viewWillAppear() {
-        super.viewWillAppear()
-        performSegue(withIdentifier: "segueLogin", sender: self)
-    }
-
-    // I'm relatively certain this is not needed, but I will leave it in and commented for now.
-    /*
-    override var representedObject: Any? {
-        didSet {
-            // Update the view, if already loaded.
-        }
-    }
-     */
-
-    private func applyDropDownFontColors() {
-        let titleColor = NSColor(calibratedRed: 0.921431005, green: 0.9214526415, blue: 0.9214410186, alpha: 1.0)
-        applyDropDownFontColor(to: popDeviceType, color: titleColor)
-        applyDropDownFontColor(to: popConvertTo, color: titleColor)
-    }
-
-    private func applyDropDownFontColor(to popUpButton: NSPopUpButton, color: NSColor) {
-        let font = popUpButton.font ?? NSFont.messageFont(ofSize: NSFont.systemFontSize)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: color
-        ]
-
-        for item in popUpButton.itemArray {
-            item.attributedTitle = NSAttributedString(string: item.title, attributes: attributes)
-        }
-
-        if let selectedTitle = popUpButton.titleOfSelectedItem {
-            popUpButton.attributedTitle = NSAttributedString(string: selectedTitle, attributes: attributes)
-        }
-    }
-
-    // NEW - Ensures the in-memory Bearer Token is still valid before any
-    // Classic API call. If fewer than 60 seconds remain (or the token has
-    // already expired), silently re-requests a fresh one using the Basic
-    // credentials retained from the login screen. Required because Jamf
-    // Pro Bearer Tokens expire after 30 minutes by default, and a
-    // Pre-Flight Check + Convert workflow can easily run longer than that
-    // if the admin is reviewing several groups.
-    func ensureValidToken() {
-        guard let expiry = globalTokenExpiry else { return }
-        let remaining = expiry.timeIntervalSinceNow
-
-        if remaining < 60 {
-            NSLog("[AUTH  ]: Bearer Token expiring soon (\(Int(remaining))s remaining) - refreshing...")
-            let tokenURL = prepareData().createTokenURL(baseURL: globalBaseURL)
-            if let refreshed = API().getBearerToken(basicCredentials: globalBasicCredentials, tokenURL: tokenURL) {
-                self.globalBearerToken = refreshed.token
-                self.globalTokenExpiry = refreshed.expires
-                NSLog("[AUTH  ]: Bearer Token refreshed successfully.")
+    public var body: some View {
+        Group {
+            if authSession.isAuthenticated {
+                ConverterView()
             } else {
-                NSLog("[ERROR ]: Failed to refresh Bearer Token. Subsequent calls may fail with 401.")
+                LoginView()
+            }
+        }
+    }
+}
+
+// MARK: - Converter View
+
+public struct ConverterView: View {
+    @EnvironmentObject var authSession: AuthSession
+
+    // Conversion options
+    @State private var deviceType: String = "Computer"
+    @State private var conversionType: String = "Static Group"
+    @State private var prefix: String = "SG Converted - "
+    @State private var groupID: String = ""
+
+    // Discovered Smart Group details
+    @State private var smartGroupName: String = ""
+    @State private var siteID: String = ""
+    @State private var smartGroupCriteria: String = ""
+    @State private var smartGroupMembership: String = ""
+    @State private var newName: String = ""
+
+    // UI state
+    @State private var isReadyToConvert: Bool = false
+    @State private var isProcessing: Bool = false
+    @State private var logs: [LogEntry] = []
+
+    private let deviceOptions = ["Computer", "Mobile Device", "User"]
+    private let conversionOptions = ["Static Group", "Advanced Search"]
+
+    public init() {}
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            // Top Navigation / Server Bar
+            HStack(spacing: 12) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 8, height: 8)
+
+                    Text(serverHostString)
+                        .font(.system(.subheadline, design: .default).weight(.semibold))
+                        .foregroundColor(.primary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                )
+
+                Spacer()
+
+                Button(action: { authSession.logOut() }) {
+                    Label("Disconnect", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Disconnect and return to login screen")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(nsColor: .windowBackgroundColor))
+
+            Divider()
+
+            // Main Content Area
+            HSplitView {
+                // Left Panel: Form & Controls
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Section: Group Settings
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("Target Configuration", systemImage: "gearshape.fill")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+
+                            // Device Type Picker
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Type of Smart Group")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+
+                                Picker("Type of Smart Group", selection: $deviceType) {
+                                    ForEach(deviceOptions, id: \.self) { option in
+                                        Text(option).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
+                                .onChange(of: deviceType) { resetConversionState() }
+                            }
+
+                            // Conversion Type Picker
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("What to convert it to")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+
+                                Picker("What to convert it to", selection: $conversionType) {
+                                    ForEach(conversionOptions, id: \.self) { option in
+                                        Text(option).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
+                                .onChange(of: conversionType) { resetConversionState() }
+                            }
+
+                            // Prefix Field
+                            AccessibleInputBox(
+                                title: "Prefix to prepend",
+                                systemImage: "tag.fill",
+                                placeholder: "e.g. SG Converted - ",
+                                hint: "Prepended to the original group name.",
+                                text: $prefix
+                            )
+                            .onChange(of: prefix) { resetConversionState() }
+
+                            // Group ID Field
+                            AccessibleInputBox(
+                                title: "Smart Group ID",
+                                systemImage: "number",
+                                placeholder: "e.g. 42",
+                                hint: "Found in your Jamf Pro group URL: id={ID}",
+                                text: $groupID
+                            )
+                            .onChange(of: groupID) { resetConversionState() }
+                        }
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                        )
+
+                        // Action: Pre-Flight Check Button
+                        Button(action: runPreflightCheck) {
+                            HStack(spacing: 8) {
+                                if isProcessing && !isReadyToConvert {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Image(systemName: "magnifyingglass.circle.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                }
+                                Text(isProcessing && !isReadyToConvert ? "Checking Group..." : "Pre-Flight Check")
+                                    .font(.headline)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 34)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(groupID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
+
+                        // Ready to Convert Banner & Action
+                        if isReadyToConvert {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(.green)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Group Found & Verified")
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
+                                        Text("Ready to create new \(conversionType.lowercased()).")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+
+                                Divider()
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Original Name:")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(smartGroupName)
+                                        .font(.system(.body, design: .monospaced).weight(.medium))
+                                        .foregroundColor(.primary)
+
+                                    Text("New Name:")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .padding(.top, 4)
+                                    Text(newName)
+                                        .font(.system(.body, design: .monospaced).weight(.bold))
+                                        .foregroundColor(.accentColor)
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(nsColor: .windowBackgroundColor))
+                                )
+
+                                Button(action: runConvertGroup) {
+                                    HStack(spacing: 8) {
+                                        if isProcessing {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                        } else {
+                                            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                                                .font(.system(size: 16, weight: .bold))
+                                        }
+                                        Text(isProcessing ? "Converting..." : "Convert Group Now")
+                                            .font(.headline)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 36)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.green)
+                                .controlSize(.large)
+                                .disabled(isProcessing)
+                            }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color.green.opacity(0.1))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.green.opacity(0.4), lineWidth: 1.5)
+                            )
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        }
+                    }
+                    .padding(16)
+                }
+                .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
+
+                // Right Panel: Activity Console
+                VStack(spacing: 0) {
+                    // Console Header Bar
+                    HStack(spacing: 8) {
+                        Image(systemName: "terminal.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.secondary)
+
+                        Text("Activity Log")
+                            .font(.system(.subheadline, design: .default).weight(.semibold))
+                            .foregroundColor(.primary)
+
+                        Spacer()
+
+                        Button(action: copyLogsToClipboard) {
+                            Label("Copy", systemImage: "doc.on.doc")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(logs.isEmpty)
+                        .help("Copy activity log to clipboard")
+
+                        Button(action: { logs.removeAll() }) {
+                            Label("Clear", systemImage: "trash")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(logs.isEmpty)
+                        .help("Clear activity log")
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color(nsColor: .controlBackgroundColor))
+
+                    Divider()
+
+                    // Console Log Stream
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 10) {
+                                ForEach(logs) { entry in
+                                    LogMessageRow(entry: entry)
+                                        .id(entry.id)
+                                }
+                            }
+                            .padding(14)
+                        }
+                        .background(Color(nsColor: .textBackgroundColor))
+                        .onChange(of: logs.count) {
+                            if let last = logs.last {
+                                withAnimation {
+                                    proxy.scrollTo(last.id, anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(minWidth: 340, idealWidth: 440)
+            }
+        }
+        .frame(minWidth: 680, minHeight: 580)
+        .onAppear {
+            if logs.isEmpty {
+                appendLog(type: .header, message: "Welcome to Stupid Groups v1.2!")
+                appendLog(type: .info, message: "Enter a Smart Group ID and click Pre-Flight Check to inspect the group before converting.")
             }
         }
     }
 
-    // This is the "Pre-Flight Check" button.
-    @IBAction func btnGET(_ sender: Any) {
-        // Clear the box on the main view controller, and then print some information.
-        clearLog()
-        printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "Gathering data about \(popDeviceType.titleOfSelectedItem!) group number \(txtGroupID.stringValue)...\n")
-        NSLog("[INFO  ]: Starting GET function.")
-
-        // Make sure our Bearer Token is still valid before calling the API
-        ensureValidToken()
-
-        // Prepare a URL to use for the GET call, based on device type and ID
-        let getURL = prepareData().createGETURL(url: globalServerURL, deviceType: self.popDeviceType.titleOfSelectedItem!, id: self.txtGroupID.stringValue)
-        
-        // Pass the URL and Bearer Token into the function to get the response XML back
-        let smartGroupXML = API().get(getToken: globalBearerToken, getURL: getURL)
-
-        // I opted to parse the returned data, and look for a <name> tag instead of using the
-        // response code, as I have noticed the response code is not always reliable when
-        // working with MUT.
-        if smartGroupXML.contains("<name>"){
-            let deviceData = prepareData().deviceData(deviceType: self.popDeviceType.titleOfSelectedItem!, conversionType: self.popConvertTo.titleOfSelectedItem!)
-
-            // Parse the response XML to gather data needed for concatenation
-            self.smartGroupCriteria = prepareData().parseXML(fullXMLString: smartGroupXML, startTag: "criteria>", endTag: "</criteria")
-            self.smartGroupName = prepareData().parseXML(fullXMLString: smartGroupXML, startTag: "name>", endTag: "</name")
-            self.newName = "\(txtPrefix.stringValue) \(String(describing: self.smartGroupName!))".replacingOccurrences(of: "  ", with: " ")
-            self.siteID = prepareData().parseXML(fullXMLString: smartGroupXML, startTag: "site>", endTag: "</site")
-            self.smartGroupMembership = prepareData().parseXML(fullXMLString: smartGroupXML, startTag: "\(deviceData[1])>", endTag: "</\(deviceData[1])")
-            printString(header: false, error: false, green: true, fixedPoint: false, lineBreakAfter: false, message: "Group Found. ")
-            printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "Group name appears to be:\n\"\(self.smartGroupName!)\"\n\nand will be converted to\n\"\(self.newName!)\".\n\nPress the Convert button to continue.")
-            readyToRun()
-        } else {
-            printString(header: false, error: true, green: false, fixedPoint: false, lineBreakAfter: false, message: "It seems an error has occured. ")
-            printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "The data gathered by Stupid Groups does not appear to match any existing group. Please try again.")
+    private var serverHostString: String {
+        if let host = URL(string: authSession.baseURL)?.host {
+            return host
         }
-        NSLog("[INFO  ]: GET function returned: " + smartGroupXML)
+        return authSession.baseURL
     }
-    
-    @IBAction func btnPOST(_ sender: Any) {
-        clearLog()
-        printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "Submitting data to create new \(popConvertTo.titleOfSelectedItem!) named \(newName ?? "nil")...\n")
-        notReadyToRun()
-        NSLog("[INFO  ]: Starting POST function.")
 
-        // Make sure our Bearer Token is still valid before calling the API
-        ensureValidToken()
+    private func resetConversionState() {
+        if isReadyToConvert {
+            isReadyToConvert = false
+            smartGroupName = ""
+            siteID = ""
+            smartGroupCriteria = ""
+            smartGroupMembership = ""
+            newName = ""
+        }
+    }
 
-        let deviceData = prepareData().deviceData(deviceType: self.popDeviceType.titleOfSelectedItem!, conversionType: self.popConvertTo.titleOfSelectedItem!)
-        
-        let xmlToPost = prepareData().xmlToPost(newName: newName, siteID: siteID, criteria: smartGroupCriteria, membership: smartGroupMembership, conversionType: popConvertTo.titleOfSelectedItem!, deviceRoot: deviceData[0], devicePlural: deviceData[1], deviceSingular: deviceData[2])
-        let postURL = prepareData().createPOSTURL(url: globalServerURL, endpoint: deviceData[3] )
-        let postResponse = API().post(postToken: globalBearerToken, postURL: postURL, postBody: xmlToPost)
+    private func appendLog(type: LogType, message: String) {
+        let entry = LogEntry(type: type, message: message)
+        logs.append(entry)
+    }
 
-        if postResponse.contains("<id>"){
+    private func copyLogsToClipboard() {
+        let combined = logs.map { "[\($0.timestamp.formatted(date: .omitted, time: .standard))] \($0.message)" }.joined(separator: "\n")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(combined, forType: .string)
+    }
+
+    // MARK: - API Actions
+
+    private func runPreflightCheck() {
+        let cleanID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanID.isEmpty else { return }
+
+        isProcessing = true
+        resetConversionState()
+
+        appendLog(type: .info, message: "Gathering data about \(deviceType.lowercased()) group #\(cleanID)...")
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            authSession.ensureValidToken()
+
+            let getURL = prepareData().createGETURL(url: authSession.serverURL, deviceType: deviceType, id: cleanID)
+            let getResponse = API().get(getToken: authSession.bearerToken, getURL: getURL)
+
             DispatchQueue.main.async {
-                self.clearLog()
-            let newID = prepareData().parseXML(fullXMLString: postResponse, startTag: "id>", endTag: "</id")
-            self.printString(header: false, error: false, green: true, fixedPoint: false, lineBreakAfter: false, message: "Success! ")
-            self.printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "Your group was converted to \(self.popConvertTo.titleOfSelectedItem!), with a name of \(self.newName ?? "nil") and an ID of \(newID).")
+                isProcessing = false
+
+                if getResponse.contains("<name>") {
+                    let extractedName = prepareData().parseXML(fullXMLString: getResponse, startTag: "name>", endTag: "</name>")
+                    let extractedSite = prepareData().parseXML(fullXMLString: getResponse, startTag: "site>", endTag: "</site>")
+                    let extractedCriteria = prepareData().parseXML(fullXMLString: getResponse, startTag: "criteria>", endTag: "</criteria>")
+
+                    let deviceData = prepareData().deviceData(deviceType: deviceType, conversionType: conversionType)
+                    let extractedMembership = prepareData().parseXML(
+                        fullXMLString: getResponse,
+                        startTag: "<\(deviceData[1])>",
+                        endTag: "</\(deviceData[1])>"
+                    )
+
+                    let computedNewName = "\(prefix) \(extractedName)".replacingOccurrences(of: "  ", with: " ")
+
+                    self.smartGroupName = extractedName
+                    self.siteID = extractedSite
+                    self.smartGroupCriteria = extractedCriteria
+                    self.smartGroupMembership = extractedMembership
+                    self.newName = computedNewName
+                    self.isReadyToConvert = true
+
+                    appendLog(type: .success, message: "Group Found: \"\(extractedName)\"")
+                    appendLog(
+                        type: .info,
+                        message: "Will convert to \(conversionType) named \"\(computedNewName)\". Click 'Convert Group Now' to proceed."
+                    )
+                } else {
+                    appendLog(
+                        type: .error,
+                        message: "The data gathered by Stupid Groups does not match any existing \(deviceType.lowercased()) group with ID \(cleanID). Please verify the ID."
+                    )
+                }
             }
-        } else if postResponse.contains("Error: Duplicate name"){
-            clearLog()
-            printString(header: false, error: true, green: false, fixedPoint: false, lineBreakAfter: false, message: "ERROR: Duplicate. ")
-            printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "It appears that a \(popConvertTo.titleOfSelectedItem!) with a name of \"\(newName ?? "nil")\" already exists.\n\nIf you have a clustered environment, or JamfCloud, it may take a few minutes for the group to appear in your web GUI after conversion.\n\nIf you would like to replace the old \(popConvertTo.titleOfSelectedItem!), please manually delete it and try again.")
-        } else if postResponse.contains("[FATAL ]:") {
-            clearLog()
-            printString(header: false, error: true, green: false, fixedPoint: false, lineBreakAfter: false, message: "FATAL: ")
-            printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "Stupid Groups has encountered a fatal error. " + postResponse)
-        } else {
-            clearLog()
-            printString(header: false, error: true, green: false, fixedPoint: false, lineBreakAfter: false, message: "ERROR: ")
-            printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: "An unspecified error has occured. Full API response below:\n\n")
-            printString(header: false, error: false, green: false, fixedPoint: true, lineBreakAfter: true, message: postResponse)
         }
-        NSLog("[INFO  ]: POST function returned: " + postResponse)
     }
 
-    // This function is required to allow the login window to pass
-    // the Bearer Token and URLs forward to the main view controller.
-    // UPDATED for the Jamf Pro 11.29 Bearer Token flow - see loginWindow.swift
-    func userDidAuthenticate(bearerToken: String, tokenExpiry: Date, baseURL: String, jssResourceURL: String, basicCredentials: String) {
-        self.globalBearerToken = bearerToken
-        self.globalTokenExpiry = tokenExpiry
-        self.globalBaseURL = baseURL
-        self.globalServerURL = jssResourceURL
-        self.globalBasicCredentials = basicCredentials
-        verified = true
-    }
+    private func runConvertGroup() {
+        guard isReadyToConvert else { return }
 
-    // This function is required to allow the app to communicate with
-    // servers who are using non-trusted SSL certificates (built-in/self-signed)
-    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        completionHandler(Foundation.URLSession.AuthChallengeDisposition.useCredential, URLCredential(trust: challenge.protectionSpace.serverTrust!))
-    }
+        isProcessing = true
+        let targetName = newName
+        let targetConversion = conversionType
 
-    // Set the view to "ready to run" state
-    func readyToRun() {
-        btnPostOutlet.isHidden = false
-        btnGetOutlet.isHidden = true
-    }
+        appendLog(type: .info, message: "Submitting data to create new \(targetConversion.lowercased()) \"\(targetName)\"...")
 
-    // Set the view to require another Pre-Flight Check
-    func notReadyToRun() {
-        btnGetOutlet.isHidden = false
-        btnPostOutlet.isHidden = true
-    }
+        DispatchQueue.global(qos: .userInitiated).async {
+            authSession.ensureValidToken()
 
-    // This function will append text to the primary log block on the
-    // main view controller. You can call this function to append or print
-    // text to the log box, and select various formats depending on your use.
-    // The bool selectors all overrule each other from left to right
-    // for example, if you select TRUE for header, it will ignore "error" "green" and "fixed point"
-    // Additional line breaks can be added by including \n in the message string
+            let deviceData = prepareData().deviceData(deviceType: deviceType, conversionType: targetConversion)
+            let postData = prepareData().xmlToPost(
+                newName: targetName,
+                siteID: siteID,
+                criteria: smartGroupCriteria,
+                membership: smartGroupMembership,
+                conversionType: targetConversion,
+                deviceRoot: deviceData[0],
+                devicePlural: deviceData[1],
+                deviceSingular: deviceData[2]
+            )
 
-    func printString(header: Bool, error: Bool, green: Bool, fixedPoint: Bool, lineBreakAfter: Bool, message: String) {
-        var stringToPrint = ""
-        if lineBreakAfter {
-            stringToPrint = message + "\n"
-        } else {
-            stringToPrint = message
+            let postURL = prepareData().createPOSTURL(url: authSession.serverURL, endpoint: deviceData[3])
+            let postResponse = API().post(postToken: authSession.bearerToken, postURL: postURL, postBody: postData)
+
+            DispatchQueue.main.async {
+                isProcessing = false
+                isReadyToConvert = false
+
+                if postResponse.contains("<id>") {
+                    let newID = prepareData().parseXML(fullXMLString: postResponse, startTag: "id>", endTag: "</id>")
+                    appendLog(type: .success, message: "Conversion Successful!")
+                    appendLog(
+                        type: .info,
+                        message: "Created \(targetConversion) \"\(targetName)\" with ID #\(newID)."
+                    )
+                } else if postResponse.contains("Error: Duplicate name") {
+                    appendLog(
+                        type: .error,
+                        message: "ERROR: A \(targetConversion.lowercased()) named \"\(targetName)\" already exists. Please delete it or change the prefix."
+                    )
+                } else if postResponse.contains("[FATAL ]:") {
+                    appendLog(type: .error, message: "FATAL ERROR: \(postResponse)")
+                } else {
+                    appendLog(type: .error, message: "ERROR: Unexpected API response:\n\(postResponse)")
+                }
+            }
         }
-        if header {
-            self.txtMain.textStorage?.append(NSAttributedString(string: "\(stringToPrint)", attributes: self.myHeaderAttribute))
-        } else if error {
-            self.txtMain.textStorage?.append(NSAttributedString(string: "\(stringToPrint)", attributes: self.myFailFontAttribute))
-        } else if green {
-            self.txtMain.textStorage?.append(NSAttributedString(string: "\(stringToPrint)", attributes: self.myOKFontAttribute))
-        } else if fixedPoint {
-            self.txtMain.textStorage?.append(NSAttributedString(string: "\(stringToPrint)", attributes: self.myCSVFontAttribute))
-        } else {
-            self.txtMain.textStorage?.append(NSAttributedString(string: "\(stringToPrint)", attributes: self.myFontAttribute))
+    }
+}
+
+// MARK: - Accessible Log Message Row
+
+public struct LogMessageRow: View {
+    public let entry: LogEntry
+
+    public var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            badgeView
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(entry.timestamp.formatted(date: .omitted, time: .standard))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+
+                Text(entry.message)
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundColor(textColor)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
         }
-        self.txtMain.scrollToEndOfDocument(self)
-    }
-    // Clears the entire logging text field
-    func clearLog() {
-        self.txtMain.textStorage?.setAttributedString(NSAttributedString(string: "", attributes: self.myFontAttribute))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(accessibilityPrefix): \(entry.message)")
     }
 
-    // Declare format for various output fonts for the end user to see.
-    // These are the font formats called by the printString function.
-    let myFontAttribute = [ NSAttributedString.Key.font: NSFont(name: "Helvetica Neue Thin", size: 14.0)! ]
-    let myHeaderAttribute = [ NSAttributedString.Key.font: NSFont(name: "Helvetica Neue Thin", size: 20.0)! ]
-    let myOKFontAttribute = [
-        NSAttributedString.Key.font: NSFont(name: "Helvetica Neue Thin", size: 14.0)!,
-        NSAttributedString.Key.foregroundColor: NSColor(deviceRed: 0.0, green: 0.8, blue: 0.0, alpha: 1.0)
-    ]
-    let myFailFontAttribute = [
-        NSAttributedString.Key.font: NSFont(name: "Helvetica Neue Thin", size: 14.0)!,
-        NSAttributedString.Key.foregroundColor: NSColor(deviceRed: 0.8, green: 0.0, blue: 0.0, alpha: 1.0)
-    ]
-    let myCSVFontAttribute = [ NSAttributedString.Key.font: NSFont(name: "Helvetica Neue Thin", size: 14.0)! ]
-    let myAlertFontAttribute = [
-        NSAttributedString.Key.font: NSFont(name: "Helvetica Neue Thin", size: 14.0)!,
-        NSAttributedString.Key.foregroundColor: NSColor(deviceRed: 0.8, green: 0.0, blue: 0.0, alpha: 1.0)
-    ]
-
-    // These actions are to reset the pre-flight button with the notreadytorun() function
-    // If something changes such as group ID or group type/target type
-    @IBAction func popGroupType(_ sender: Any) {
-        applyDropDownFontColors()
-        notReadyToRun()
-    }
-    @IBAction func popConvertTo(_ sender: Any) {
-        applyDropDownFontColors()
-        notReadyToRun()
-    }
-    @IBAction func txtIDAction(_ sender: Any) {
-        notReadyToRun()
-    }
-    @IBAction func txtPrefixAction(_ sender: Any) {
-        notReadyToRun() 
+    @ViewBuilder
+    private var badgeView: some View {
+        switch entry.type {
+        case .header:
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.blue)
+                .frame(width: 16)
+        case .success:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.green)
+                .frame(width: 16)
+        case .error:
+            Image(systemName: "xmark.octagon.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.red)
+                .frame(width: 16)
+        case .info:
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .frame(width: 16)
+        }
     }
 
+    private var textColor: Color {
+        switch entry.type {
+        case .header:
+            return .primary
+        case .success:
+            return .green
+        case .error:
+            return .red
+        case .info:
+            return .primary
+        }
+    }
+
+    private var accessibilityPrefix: String {
+        switch entry.type {
+        case .header: return "Notice"
+        case .success: return "Success"
+        case .error: return "Error"
+        case .info: return "Information"
+        }
+    }
 }
