@@ -116,6 +116,10 @@ public struct ConverterView: View {
 
             // Main Content Area
             HSplitView {
+                // Far Left Panel: Branding & Version
+                BrandingPane()
+                    .frame(width: 200)
+
                 // Left Panel: Form & Controls
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -380,7 +384,7 @@ public struct ConverterView: View {
                 .frame(minWidth: 340, idealWidth: 440)
             }
         }
-        .frame(minWidth: 680, minHeight: 580)
+        .frame(minWidth: 880, minHeight: 580)
         .onAppear {
             if logs.isEmpty {
                 appendLog(type: .header, message: "Welcome to Stupid Groups v1.2!")
@@ -547,6 +551,72 @@ public struct ConverterView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Branding Pane
+
+public struct BrandingPane: View {
+    public init() {}
+
+    // Warm-to-cool gradient chosen to contrast with the blue logo while
+    // keeping the white text readable at the top and bottom.
+    private let gradient = LinearGradient(
+        colors: [
+            Color(red: 0.84, green: 0.33, blue: 0.31),
+            Color(red: 0.71, green: 0.22, blue: 0.43),
+            Color(red: 0.36, green: 0.23, blue: 0.62)
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
+    public var body: some View {
+        VStack(spacing: 14) {
+            Spacer()
+                .frame(height: 40)
+
+            Image("NinjaLogo")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 140, height: 140)
+                .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
+                .accessibilityHidden(true)
+
+            Text(appName)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
+
+            Spacer()
+
+            Text("Version \(versionString)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(.bottom, 16)
+                .textSelection(.enabled)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(gradient)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var appName: String {
+        let info = Bundle.main.infoDictionary
+        return (info?["CFBundleDisplayName"] as? String)
+            ?? (info?["CFBundleName"] as? String)
+            ?? "Stupid Groups"
+    }
+
+    // Reads "Version X (build)" from the app bundle so it stays in sync with build settings.
+    private var versionString: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = info?["CFBundleVersion"] as? String ?? "1"
+        return "\(version) (\(build))"
     }
 }
 
