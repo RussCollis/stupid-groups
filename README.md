@@ -1,5 +1,7 @@
 # Stupid Groups 2
 
+[![Buy me a coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=russcollis&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/russcollis)
+
 **Make your Jamf Pro smart groups less smart.**
 
 Stupid Groups converts Jamf Pro **Smart Groups** into either **Static Groups** or **Advanced Searches**. It covers computers, mobile devices, and users.
