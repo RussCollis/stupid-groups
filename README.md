@@ -12,7 +12,7 @@ This is an updated fork of [mike-levenick/stupid-groups](https://github.com/mike
 
 | | |
 |---|---|
-| **Version** | 2 |
+| **Version** | 2.0.1 |
 | **Tested with** | Jamf Pro 11.29 |
 | **Requires** | macOS 26 or later |
 | **Signing** | The project is unsigned. Build it yourself in Xcode, or allow it in **System Settings › Privacy & Security** the first time it opens. |

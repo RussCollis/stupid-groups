@@ -467,8 +467,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2;
-				PRODUCT_BUNDLE_IDENTIFIER = "Levenick.Stupid-Groups";
+				MARKETING_VERSION = 2.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.russcollis.StupidGroups";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
@@ -492,8 +492,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2;
-				PRODUCT_BUNDLE_IDENTIFIER = "Levenick.Stupid-Groups";
+				MARKETING_VERSION = 2.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.russcollis.StupidGroups";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
@@ -516,7 +516,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Levenick.Stupid-GroupsTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.russcollis.StupidGroupsTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.2;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Stupid Groups.app/Contents/MacOS/Stupid Groups";
@@ -539,7 +539,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Levenick.Stupid-GroupsTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.russcollis.StupidGroupsTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.2;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Stupid Groups.app/Contents/MacOS/Stupid Groups";
@@ -561,7 +561,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Levenick.Stupid-GroupsUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.russcollis.StupidGroupsUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.2;
 				TEST_TARGET_NAME = "Stupid Groups";
@@ -583,7 +583,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "Levenick.Stupid-GroupsUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.russcollis.StupidGroupsUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 4.2;
 				TEST_TARGET_NAME = "Stupid Groups";

@@ -1,0 +1,121 @@
+2026-11-18 12:18:38 +0000 [MT] Initial pipeline context: <IDEDistributionProcessingPipelineContext: 0x77ae18e700; archive(resolved)="<IDEArchive: 0x77adefd260>", distributionTask(resolved)="2", distributionDestination(resolved)="1", distributionMethod(resolved)="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team(resolved)="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	Chain (12, self inclusive):
+	<IDEDistributionProcessingPipelineContext: 0x77ae18e700; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionProcessingPipelineContext: 0x77ae18e400; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionContext: 0x77ab97e300; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionContext: 0x77ab97de00; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionContext: 0x77ab97db80; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionContext: 0x77ab97d900; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionContext: 0x77ab97ca00; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionContext: 0x77ab97c780; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionContext: 0x77ab97c500; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="<IDEProvisioningBasicTeam: 0x77ae100860; teamID='UM5LY5579J', teamName='(null)'>">
+	<IDEDistributionContext: 0x77ab97c280; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="(null)">
+	<IDEDistributionContext: 0x77ab97c000; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="<IDEDistributionMethodDeveloperID: 0x77ae048230>", team="(null)">
+	<IDEDistributionContext: 0x1047f8e70; archive = "<IDEArchive: 0x77adefd260>", distributionMethod="(null)", team="(null)">
+</IDEDistributionProcessingPipelineContext: 0x77ae18e700>
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionCreateDestRootStep
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionCopyItemStep
+2026-11-18 12:18:38 +0000 [MT] Running /usr/bin/ditto '-V' '/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app' '/var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/Root/Applications/Stupid Groups.app'
+2026-11-18 12:18:38 +0000  >>> Copying /Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app 
+2026-11-18 12:18:38 +0000  copying file ./Contents/_CodeSignature/CodeResources ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/_CodeSignature/CodeResources
+2026-11-18 12:18:38 +0000  copying file ./Contents/MacOS/Stupid Groups ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/MacOS/Stupid Groups
+2026-11-18 12:18:38 +0000  copying file ./Contents/Resources/AppIcon.icns ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Resources/AppIcon.icns
+2026-11-18 12:18:38 +0000  copying file ./Contents/Resources/Base.lproj/Main.storyboardc/MainMenu.nib ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Resources/Base.lproj/Main.storyboardc/MainMenu.nib
+2026-11-18 12:18:38 +0000  copying file ./Contents/Resources/Base.lproj/Main.storyboardc/XfG-lQ-9wD-view-m2S-Jp-Qdl.nib ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Resources/Base.lproj/Main.storyboardc/XfG-lQ-9wD-view-m2S-Jp-Qdl.nib
+2026-11-18 12:18:38 +0000  copying file ./Contents/Resources/Base.lproj/Main.storyboardc/NSWindowController-B8D-0N-5wS.nib ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Resources/Base.lproj/Main.storyboardc/NSWindowController-B8D-0N-5wS.nib
+2026-11-18 12:18:38 +0000  copying file ./Contents/Resources/Base.lproj/Main.storyboardc/mZ7-hY-i1Q-view-Jda-Q7-Y0A.nib ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Resources/Base.lproj/Main.storyboardc/mZ7-hY-i1Q-view-Jda-Q7-Y0A.nib
+2026-11-18 12:18:38 +0000  copying file ./Contents/Resources/Base.lproj/Main.storyboardc/NSViewController-mZ7-hY-i1Q.nib ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Resources/Base.lproj/Main.storyboardc/NSViewController-mZ7-hY-i1Q.nib
+2026-11-18 12:18:38 +0000  copying file ./Contents/Resources/Base.lproj/Main.storyboardc/Info.plist ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Resources/Base.lproj/Main.storyboardc/Info.plist
+2026-11-18 12:18:38 +0000  copying file ./Contents/Resources/Assets.car ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Resources/Assets.car
+2026-11-18 12:18:38 +0000  copying file ./Contents/Info.plist ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/Info.plist
+copying file ./Contents/PkgInfo ... 
+2026-11-18 12:18:38 +0000  cloned ./Contents/PkgInfo
+2026-11-18 12:18:38 +0000 [MT] /usr/bin/ditto exited with 0
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionEmbedProfileStep
+2026-11-18 12:18:38 +0000 [MT] Skipping profile for item: <IDEDistributionItem: 0x77ab940f60; bundleID='com.russcollis.StupidGroups', path='<DVTFilePath:0x77adf1a600:'/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x77ab940cc0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x77aba63aa0; name='Developer ID Application: Russell Collis (UM5LY5579J)', hash='86A45E52AE9EFDFCC699E71A00E6FD5EBA922A31', serialNumber='24C577559630A2FC050B478A3191F3C4', certificateKinds='(
+    "1.2.840.113635.100.6.1.13"
+), issueDate='2026-11-18 08:58:43 +0000''>', entitlements='{
+    "com.apple.security.app-sandbox" = 1;
+    "com.apple.security.files.user-selected.read-only" = 1;
+    "com.apple.security.network.client" = 1;
+}', teamID='UM5LY5579J', identifier='com.russcollis.StupidGroups', executablePath='<DVTFilePath:0x77adeffbf0:'/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app/Contents/MacOS/Stupid Groups'>', hardenedRuntime='1'>'>
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionInfoPlistStep
+2026-11-18 12:18:38 +0000 [MT] Skipping step: IDEDistributionInfoPlistStep because it said so
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionAppThinningPlistStep
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionSymbolsStep
+2026-11-18 12:18:38 +0000 [MT] Skipping step: IDEDistributionSymbolsStep because it said so
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionAppThinningStep
+2026-11-18 12:18:38 +0000 [MT] Skipping step: IDEDistributionAppThinningStep because it said so
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionArchThinningStep
+2026-11-18 12:18:38 +0000 [MT] Archs to thin for item /Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app are []
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionODRStep
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionStripXattrsStep
+2026-11-18 12:18:38 +0000 [MT] Skipping stripping extended attributes because the codesign step will strip them.
+2026-11-18 12:18:38 +0000 [MT] Processing step: IDEDistributionCodesignStep
+2026-11-18 12:18:38 +0000 [MT] Entitlements for <IDEDistributionItem: 0x77ab940f60; bundleID='com.russcollis.StupidGroups', path='<DVTFilePath:0x77adf1a600:'/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x77ab940cc0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x77ab8a97a0; name='Developer ID Application: Russell Collis (UM5LY5579J)', hash='86A45E52AE9EFDFCC699E71A00E6FD5EBA922A31', serialNumber='24C577559630A2FC050B478A3191F3C4', certificateKinds='(
+    "1.2.840.113635.100.6.1.13"
+), issueDate='2026-11-18 08:58:43 +0000''>', entitlements='{
+    "com.apple.security.app-sandbox" = 1;
+    "com.apple.security.files.user-selected.read-only" = 1;
+    "com.apple.security.network.client" = 1;
+}', teamID='UM5LY5579J', identifier='com.russcollis.StupidGroups', executablePath='<DVTFilePath:0x77adeffbf0:'/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app/Contents/MacOS/Stupid Groups'>', hardenedRuntime='1'>'>: {
+    "com.apple.security.app-sandbox" = 1;
+    "com.apple.security.files.user-selected.read-only" = 1;
+    "com.apple.security.network.client" = 1;
+}
+2026-11-18 12:18:38 +0000 [MT] Associated App Clip Identifiers Filter: Skipping because "com.apple.developer.associated-appclip-app-identifiers" is not present
+2026-11-18 12:18:38 +0000 [MT] Entitlements for <IDEDistributionItem: 0x77ab940f60; bundleID='com.russcollis.StupidGroups', path='<DVTFilePath:0x77adf1a600:'/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x77ab940cc0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x77ab8a97a0; name='Developer ID Application: Russell Collis (UM5LY5579J)', hash='86A45E52AE9EFDFCC699E71A00E6FD5EBA922A31', serialNumber='24C577559630A2FC050B478A3191F3C4', certificateKinds='(
+    "1.2.840.113635.100.6.1.13"
+), issueDate='2026-11-18 08:58:43 +0000''>', entitlements='{
+    "com.apple.security.app-sandbox" = 1;
+    "com.apple.security.files.user-selected.read-only" = 1;
+    "com.apple.security.network.client" = 1;
+}', teamID='UM5LY5579J', identifier='com.russcollis.StupidGroups', executablePath='<DVTFilePath:0x77adeffbf0:'/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app/Contents/MacOS/Stupid Groups'>', hardenedRuntime='1'>'> are: {
+    "com.apple.security.app-sandbox" = 1;
+    "com.apple.security.files.user-selected.read-only" = 1;
+    "com.apple.security.network.client" = 1;
+}
+2026-11-18 12:18:38 +0000 [MT] Writing entitlements for <IDEDistributionItem: 0x77ab940f60; bundleID='com.russcollis.StupidGroups', path='<DVTFilePath:0x77adf1a600:'/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app'>', codeSigningInfo='<_DVTCodeSigningInformation_Path: 0x77ab940cc0; isSigned='1', isAdHocSigned='0', signingCertificate='<DVTSigningCertificate: 0x77ab8a97a0; name='Developer ID Application: Russell Collis (UM5LY5579J)', hash='86A45E52AE9EFDFCC699E71A00E6FD5EBA922A31', serialNumber='24C577559630A2FC050B478A3191F3C4', certificateKinds='(
+    "1.2.840.113635.100.6.1.13"
+), issueDate='2026-11-18 08:58:43 +0000''>', entitlements='{
+    "com.apple.security.app-sandbox" = 1;
+    "com.apple.security.files.user-selected.read-only" = 1;
+    "com.apple.security.network.client" = 1;
+}', teamID='UM5LY5579J', identifier='com.russcollis.StupidGroups', executablePath='<DVTFilePath:0x77adeffbf0:'/Users/russellcollis/Documents/GitHub/stupid-groups/build/StupidGroups.xcarchive/Products/Applications/Stupid Groups.app/Contents/MacOS/Stupid Groups'>', hardenedRuntime='1'>'> to: /var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/entitlements~~~Et2tKu
+2026-11-18 12:18:38 +0000 [MT] invoking codesign: <NSConcreteTask: 0x77ae2379d0; launchPath='/usr/bin/codesign', arguments='(
+    "-f",
+    "-s",
+    86A45E52AE9EFDFCC699E71A00E6FD5EBA922A31,
+    "--entitlements",
+    "/var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/entitlements~~~Et2tKu",
+    "--requirements",
+    "=designated => anchor apple generic  and identifier \"$self.identifier\" and ((cert leaf[field.1.2.840.113635.100.6.1.9] exists) or ( certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists  and certificate leaf[subject.OU] = \"UM5LY5579J\" ))",
+    "--preserve-metadata=identifier,flags,runtime,launch-constraints,library-constraints",
+    "--generate-entitlement-der",
+    "--strip-disallowed-xattrs",
+    "-vvv",
+    "/var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/Root/Applications/Stupid Groups.app"
+)'>
+2026-11-18 12:18:39 +0000 [MT] codesign output: /var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/Root/Applications/Stupid Groups.app: replacing existing signature
+/var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/Root/Applications/Stupid Groups.app: signed app bundle with Mach-O universal (x86_64 arm64) [com.russcollis.StupidGroups]
+2026-11-18 12:18:39 +0000 [MT] Processing step: IDEDistributionZipODRItemStep
+2026-11-18 12:18:39 +0000 [MT] Skipping step: IDEDistributionZipODRItemStep because it said so
+2026-11-18 12:18:39 +0000 [MT] Processing step: IDEDistributionSkipPackagingStep
+2026-11-18 12:18:39 +0000 [MT] Processing step: IDEDistributionAppStoreInformationStep
+2026-11-18 12:18:39 +0000 [MT] Skipping step: IDEDistributionAppStoreInformationStep because it said so
+2026-11-18 12:18:39 +0000 [MT] Processing step: IDEDistributionGenerateProcessedDistributionItems
+2026-11-18 12:18:39 +0000 [MT] IDEDistributionItem init <DVTFilePath:0x77ae350a80:'/var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/Root/Applications/Stupid Groups.app'>
+2026-11-18 12:18:39 +0000 [MT] [OPTIONAL] Didn't find embedded provisioning profile for <DVTFilePath:0x77ae350a80:'/var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/Root/Applications/Stupid Groups.app'>: Error Domain=NSCocoaErrorDomain Code=4 "No file at <DVTFilePath:0x77ae36cc40:'/var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/Root/Applications/Stupid Groups.app/Contents/embedded.provisionprofile'>" UserInfo={NSLocalizedDescription=No file at <DVTFilePath:0x77ae36cc40:'/var/folders/9s/7b1t4z6165zf3_v_7wz5xxy80000gn/T/XcodeDistPipeline.~~~rTWq7t/Root/Applications/Stupid Groups.app/Contents/embedded.provisionprofile'>}
+2026-11-18 12:18:39 +0000 [MT] Processing step: IDEDistributionCreateManifestStep
+2026-11-18 12:18:39 +0000 [MT] Skipping step: IDEDistributionCreateManifestStep because it said so

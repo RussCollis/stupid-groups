@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Stupid Groups</key>
+	<array>
+		<dict>
+			<key>architectures</key>
+			<array>
+				<string>x86_64</string>
+				<string>arm64</string>
+			</array>
+			<key>buildNumber</key>
+			<string>2</string>
+			<key>certificate</key>
+			<dict>
+				<key>SHA1</key>
+				<string>86A45E52AE9EFDFCC699E71A00E6FD5EBA922A31</string>
+				<key>dateExpires</key>
+				<string>18/12/2027</string>
+				<key>type</key>
+				<string>Developer ID Application</string>
+			</dict>
+			<key>entitlements</key>
+			<dict>
+				<key>com.apple.security.app-sandbox</key>
+				<true/>
+				<key>com.apple.security.files.user-selected.read-only</key>
+				<true/>
+				<key>com.apple.security.network.client</key>
+				<true/>
+			</dict>
+			<key>name</key>
+			<string>Stupid Groups.app</string>
+			<key>team</key>
+			<dict>
+				<key>id</key>
+				<string>UM5LY5579J</string>
+				<key>name</key>
+				<string></string>
+			</dict>
+			<key>versionNumber</key>
+			<string>2.0.1</string>
+		</dict>
+	</array>
+</dict>
+</plist>
