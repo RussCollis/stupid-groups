@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Xcode per-user state
+xcuserdata/
+
+# Build output (archives, exported apps, signed/notarized packages)
+build/
+DerivedData/
+*.xcarchive
