@@ -319,14 +319,14 @@ public struct AccessibleInputBox: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(.subheadline, design: .default).weight(.medium))
-                .foregroundColor(.primary)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.primary)
                 .accessibilityAddTraits(.isHeader)
 
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(isFocused ? .accentColor : .secondary)
+                    .foregroundStyle(isFocused ? Theme.primary : .secondary)
                     .frame(width: 22)
 
                 if isSecure && !showPassword {
@@ -365,20 +365,20 @@ public struct AccessibleInputBox: View {
                     .help("Clear text")
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
             .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Theme.panel)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isFocused ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isFocused ? 1.5 : 1)
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(isFocused ? Theme.primary : Theme.border, lineWidth: isFocused ? 1.5 : 1)
             )
 
             if let hint = hint {
                 Text(hint)
-                    .font(.caption)
+                    .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .padding(.leading, 2)
             }
@@ -392,216 +392,151 @@ public struct LoginView: View {
     @EnvironmentObject var authSession: AuthSession
 
     public var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Header & Branding
-                VStack(spacing: 10) {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.blue.opacity(0.85), Color.indigo],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 64, height: 64)
-                            .shadow(color: Color.blue.opacity(0.3), radius: 8, x: 0, y: 4)
+        HStack(spacing: 0) {
+            SidebarPane()
+                .frame(width: 210)
 
-                        Image(systemName: "person.3.sequence.fill")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    PageHeader(
+                        title: "Connect to Jamf Pro",
+                        subtitle: "Sign in with a user account or an API Client."
+                    ) {
+                        EmptyView()
                     }
-                    .padding(.top, 10)
 
-                    Text("Stupid Groups")
-                        .font(.system(size: 28, weight: .bold, design: .default))
-                        .foregroundColor(.primary)
+                    // Error Banner
+                    if let error = authSession.authErrorMessage {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Theme.red)
 
-                    Text("Make your Jamf Pro smart groups less smart.")
-                        .font(.system(.subheadline, design: .default))
-                        .foregroundColor(.secondary)
-                }
+                            Text(error)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
 
-                // Error Banner
-                if let error = authSession.authErrorMessage {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.red)
+                            Spacer()
 
-                        Text(error)
-                            .font(.system(.callout, design: .default))
-                            .foregroundColor(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer()
-
-                        Button(action: { authSession.authErrorMessage = nil }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Dismiss error")
-                    }
-                    .padding(14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.red.opacity(0.12))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.red.opacity(0.4), lineWidth: 1)
-                    )
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Error: \(error)")
-                }
-
-                // Input Card
-                VStack(spacing: 16) {
-                    AccessibleInputBox(
-                        title: "Jamf Pro Server",
-                        systemImage: "server.rack",
-                        placeholder: "e.g. your-instance or https://jss.example.com",
-                        hint: "Enter your Jamf Cloud instance name or full on-prem URL.",
-                        text: $authSession.inputURL
-                    )
-
-                    Picker("Sign in with", selection: $authSession.authMethod) {
-                        ForEach(AuthMethod.allCases) { method in
-                            Text(method.rawValue).tag(method)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityHint("Choose whether to sign in with a user account or API Client credentials.")
-
-                    switch authSession.authMethod {
-                    case .userAccount:
-                        AccessibleInputBox(
-                            title: "Username",
-                            systemImage: "person.fill",
-                            placeholder: "Administrator Username",
-                            text: $authSession.inputUsername
-                        )
-
-                        AccessibleInputBox(
-                            title: "Password",
-                            systemImage: "key.fill",
-                            placeholder: "Password",
-                            text: $authSession.inputPassword,
-                            isSecure: true
-                        )
-                    case .apiClient:
-                        AccessibleInputBox(
-                            title: "Client ID",
-                            systemImage: "person.badge.key.fill",
-                            placeholder: "API Client ID",
-                            hint: "Found in Settings > System > API Roles and Clients.",
-                            text: $authSession.inputClientID
-                        )
-
-                        AccessibleInputBox(
-                            title: "Client Secret",
-                            systemImage: "key.fill",
-                            placeholder: "API Client Secret",
-                            text: $authSession.inputClientSecret,
-                            isSecure: true
-                        )
-                    }
-                    
-                    // Updated Permissions Info Box
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Important:")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.primary)
-                        Text("API login requires: Jamf Pro API role with access to smart/static groups and searches via the new API.")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                        Text("Contact your Jamf admin to ensure your role has these permissions.")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                    )
-
-                    Divider()
-                        .padding(.vertical, 4)
-
-                    // Options
-                    VStack(alignment: .leading, spacing: 10) {
-                        Toggle(isOn: $authSession.rememberMe) {
-                            Text(authSession.authMethod == .userAccount ? "Remember server and username" : "Remember server and Client ID")
-                                .font(.subheadline)
-                        }
-                        .toggleStyle(.checkbox)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(20)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                )
-
-                // Actions
-                VStack(spacing: 12) {
-                    Button(action: { authSession.authenticate() }) {
-                        HStack(spacing: 8) {
-                            if authSession.isAuthenticating {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.right.circle.fill")
-                                    .font(.system(size: 16, weight: .bold))
+                            Button(action: { authSession.authErrorMessage = nil }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.secondary)
                             }
-                            Text(authSession.isAuthenticating ? "Connecting..." : "Connect to Jamf Pro")
-                                .font(.headline)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Dismiss error")
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 38)
+                        .padding(14)
+                        .background(Theme.red.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.red.opacity(0.5), lineWidth: 1))
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Error: \(error)")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(authSession.isAuthenticating)
-                    .keyboardShortcut(.defaultAction)
 
-                    HStack {
+                    // Sign-in Panel
+                    Panel(
+                        "Sign In",
+                        footer: "API login requires a Jamf Pro API role with access to smart/static groups and searches. Contact your Jamf admin to make sure your role has these permissions."
+                    ) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            AccessibleInputBox(
+                                title: "Jamf Pro Server",
+                                systemImage: "server.rack",
+                                placeholder: "e.g. your-instance or https://jss.example.com",
+                                hint: "Enter your Jamf Cloud instance name or full on-prem URL.",
+                                text: $authSession.inputURL
+                            )
+
+                            Picker("Sign in with", selection: $authSession.authMethod) {
+                                ForEach(AuthMethod.allCases) { method in
+                                    Text(method.rawValue).tag(method)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .accessibilityHint("Choose whether to sign in with a user account or API Client credentials.")
+
+                            switch authSession.authMethod {
+                            case .userAccount:
+                                AccessibleInputBox(
+                                    title: "Username",
+                                    systemImage: "person.fill",
+                                    placeholder: "Administrator Username",
+                                    text: $authSession.inputUsername
+                                )
+
+                                AccessibleInputBox(
+                                    title: "Password",
+                                    systemImage: "key.fill",
+                                    placeholder: "Password",
+                                    text: $authSession.inputPassword,
+                                    isSecure: true
+                                )
+                            case .apiClient:
+                                AccessibleInputBox(
+                                    title: "Client ID",
+                                    systemImage: "person.badge.key.fill",
+                                    placeholder: "API Client ID",
+                                    hint: "Found in Settings > System > API Roles and Clients.",
+                                    text: $authSession.inputClientID
+                                )
+
+                                AccessibleInputBox(
+                                    title: "Client Secret",
+                                    systemImage: "key.fill",
+                                    placeholder: "API Client Secret",
+                                    text: $authSession.inputClientSecret,
+                                    isSecure: true
+                                )
+                            }
+
+                            Toggle(isOn: $authSession.rememberMe) {
+                                Text(authSession.authMethod == .userAccount ? "Remember server and username" : "Remember server and Client ID")
+                                    .font(.system(size: 13))
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                        .padding(16)
+                    }
+
+                    // Actions
+                    HStack(spacing: 8) {
                         Button("Clear Stored Credentials") {
                             authSession.clearStoredCredentials()
                         }
-                        .buttonStyle(.link)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                        Spacer()
+                        .buttonStyle(.panel)
 
                         Button("Quit") {
                             NSApplication.shared.terminate(nil)
                         }
-                        .buttonStyle(.plain)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .buttonStyle(.panel)
+
+                        Spacer()
+
+                        Button(action: { authSession.authenticate() }) {
+                            HStack(spacing: 8) {
+                                if authSession.isAuthenticating {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                }
+                                Text(authSession.isAuthenticating ? "Connecting..." : "Connect to Jamf Pro")
+                            }
+                        }
+                        .buttonStyle(.panelPrimary)
+                        .disabled(authSession.isAuthenticating)
+                        .keyboardShortcut(.defaultAction)
                     }
-                    .padding(.horizontal, 4)
                 }
+                .padding(24)
+                .frame(maxWidth: 560, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
-            .padding(24)
-            .frame(maxWidth: 480)
+            .background(Theme.content)
         }
-        .frame(minWidth: 440, minHeight: 560)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(minWidth: 700, minHeight: 600)
     }
 }
 

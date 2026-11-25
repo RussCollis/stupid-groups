@@ -17,6 +17,7 @@
 		F7EAD13721F6351C001F8492 /* popPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EAD13621F6351C001F8492 /* popPrompt.swift */; };
 		F7EAD13921F63703001F8492 /* loginWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EAD13821F63703001F8492 /* loginWindow.swift */; };
 		F7EAD13B21F64BFD001F8492 /* prepareData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EAD13A21F64BFD001F8492 /* prepareData.swift */; };
+		A1B2C3D42F00000100000001 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D42F00000100000002 /* Theme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 		F7EAD13821F63703001F8492 /* loginWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = loginWindow.swift; sourceTree = "<group>"; };
 		F7EAD13A21F64BFD001F8492 /* prepareData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = prepareData.swift; sourceTree = "<group>"; };
 		F7EAD13C21F64D28001F8492 /* Stupid Groups.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Stupid Groups.entitlements"; sourceTree = "<group>"; };
+		A1B2C3D42F00000100000002 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,6 +128,7 @@
 				F7EAD11221F6112B001F8492 /* Stupid_Groups.entitlements */,
 				F7EAD13621F6351C001F8492 /* popPrompt.swift */,
 				F7EAD13821F63703001F8492 /* loginWindow.swift */,
+				A1B2C3D42F00000100000002 /* Theme.swift */,
 			);
 			path = "Stupid Groups";
 			sourceTree = "<group>";
@@ -289,6 +292,7 @@
 				F77F8D2921F9FA1F005C33EE /* apiFunctions.swift in Sources */,
 				F7EAD10921F61129001F8492 /* AppDelegate.swift in Sources */,
 				F7EAD13721F6351C001F8492 /* popPrompt.swift in Sources */,
+				A1B2C3D42F00000100000001 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -467,7 +471,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.russcollis.StupidGroups";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -492,7 +496,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.russcollis.StupidGroups";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

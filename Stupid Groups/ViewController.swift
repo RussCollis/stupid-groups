@@ -75,322 +75,258 @@ public struct ConverterView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // Top Navigation / Server Bar
-            HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 8, height: 8)
+        HStack(spacing: 0) {
+            SidebarPane(serverHost: serverHostString, onDisconnect: { authSession.logOut() })
+                .frame(width: 210)
 
-                    Text(serverHostString)
-                        .font(.system(.subheadline, design: .default).weight(.semibold))
-                        .foregroundColor(.primary)
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Groups  ›  Convert Smart Group")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+
+                PageHeader(
+                    title: "Convert Smart Group",
+                    subtitle: "Turn a Jamf Pro smart group into a static group or an advanced search."
+                ) {
+                    Button(action: { authSession.logOut() }) {
+                        Label("Disconnect", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                    .buttonStyle(.panel)
+                    .help("Disconnect and return to login screen")
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    Capsule()
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                )
 
-                Spacer()
-
-                Button(action: { authSession.logOut() }) {
-                    Label("Disconnect", systemImage: "rectangle.portrait.and.arrow.right")
-                        .font(.caption)
+                ChipRow {
+                    StatChip(symbol: "checkmark.circle.fill", count: logCount(.success), label: "Succeeded", tint: Theme.green)
+                    StatChip(symbol: "xmark.octagon.fill", count: logCount(.error), label: "Errors", tint: Theme.red)
+                    StatChip(symbol: "list.bullet", count: logs.count, label: "Log entries", tint: Theme.blue)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Disconnect and return to login screen")
+
+                HStack(alignment: .top, spacing: 16) {
+                    // Left column: form, pre-flight check and conversion
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            configurationPanel
+
+                            if isReadyToConvert {
+                                preflightResultPanel
+                                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                            }
+                        }
+                    }
+                    .scrollIndicators(.automatic)
+                    .frame(minWidth: 320, idealWidth: 380, maxWidth: 440)
+
+                    // Right column: activity log
+                    activityLogPanel
+                        .frame(minWidth: 320, maxHeight: .infinity)
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color(nsColor: .windowBackgroundColor))
-
-            Divider()
-
-            // Main Content Area
-            HSplitView {
-                // Far Left Panel: Branding & Version
-                BrandingPane()
-                    .frame(width: 200)
-
-                // Left Panel: Form & Controls
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Section: Group Settings
-                        VStack(alignment: .leading, spacing: 14) {
-                            Label("Target Configuration", systemImage: "gearshape.fill")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-
-                            // Device Type Picker
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Type of Smart Group")
-                                    .font(.subheadline)
-                                    .foregroundColor(.primary)
-
-                                Picker("Type of Smart Group", selection: $deviceType) {
-                                    ForEach(deviceOptions, id: \.self) { option in
-                                        Text(option).tag(option)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
-                                .onChange(of: deviceType) { resetConversionState() }
-                            }
-
-                            // Conversion Type Picker
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("What to convert it to")
-                                    .font(.subheadline)
-                                    .foregroundColor(.primary)
-
-                                Picker("What to convert it to", selection: $conversionType) {
-                                    ForEach(conversionOptions, id: \.self) { option in
-                                        Text(option).tag(option)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
-                                .onChange(of: conversionType) { resetConversionState() }
-                            }
-
-                            // Prefix Field
-                            AccessibleInputBox(
-                                title: "Prefix to prepend",
-                                systemImage: "tag.fill",
-                                placeholder: "e.g. SG Converted - ",
-                                hint: "Prepended to the original group name.",
-                                text: $prefix
-                            )
-                            .onChange(of: prefix) { resetConversionState() }
-
-                            // Group ID Field
-                            AccessibleInputBox(
-                                title: "Smart Group ID",
-                                systemImage: "number",
-                                placeholder: "e.g. 42",
-                                hint: "Found in your Jamf Pro group URL: id={ID}",
-                                text: $groupID
-                            )
-                            .onChange(of: groupID) { resetConversionState() }
-                        }
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(nsColor: .controlBackgroundColor))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                        )
-
-                        // Action: Pre-Flight Check Button
-                        Button(action: runPreflightCheck) {
-                            HStack(spacing: 8) {
-                                if isProcessing && !isReadyToConvert {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                } else {
-                                    Image(systemName: "magnifyingglass.circle.fill")
-                                        .font(.system(size: 16, weight: .bold))
-                                }
-                                Text(isProcessing && !isReadyToConvert ? "Checking Group..." : "Pre-Flight Check")
-                                    .font(.headline)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 34)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(groupID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
-
-                        // Ready to Convert Banner & Action
-                        if isReadyToConvert {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.title2)
-                                        .foregroundColor(.green)
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Group Found & Verified")
-                                            .font(.headline)
-                                            .foregroundColor(.primary)
-                                        Text("Ready to create new \(conversionType.lowercased()).")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-
-                                Divider()
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Original Name:")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(smartGroupName)
-                                        .font(.system(.body, design: .monospaced).weight(.medium))
-                                        .foregroundColor(.primary)
-
-                                    Text("New Name:")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .padding(.top, 4)
-                                    Text(newName)
-                                        .font(.system(.body, design: .monospaced).weight(.bold))
-                                        .foregroundColor(.accentColor)
-                                }
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(nsColor: .windowBackgroundColor))
-                                )
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Toggle(isOn: $deleteOriginalAfterConversion) {
-                                        Text("Delete original smart group after conversion")
-                                            .font(.subheadline)
-                                    }
-                                    .toggleStyle(.checkbox)
-                                    .accessibilityHint("When enabled, the original smart group is permanently deleted once the new \(conversionType.lowercased()) is created.")
-
-                                    if deleteOriginalAfterConversion {
-                                        Text("The original group is only deleted if the conversion succeeds. Jamf Pro will refuse if it is still used by policies, profiles, or other scoping.")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .padding(.leading, 20)
-                                    }
-                                }
-
-                                Button(action: {
-                                    if deleteOriginalAfterConversion {
-                                        showDeleteConfirmation = true
-                                    } else {
-                                        runConvertGroup()
-                                    }
-                                }) {
-                                    HStack(spacing: 8) {
-                                        if isProcessing {
-                                            ProgressView()
-                                                .controlSize(.small)
-                                        } else {
-                                            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                                                .font(.system(size: 16, weight: .bold))
-                                        }
-                                        Text(isProcessing ? "Converting..." : "Convert Group Now")
-                                            .font(.headline)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 36)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.green)
-                                .controlSize(.large)
-                                .disabled(isProcessing)
-                                .confirmationDialog(
-                                    "Delete \"\(smartGroupName)\" after converting?",
-                                    isPresented: $showDeleteConfirmation
-                                ) {
-                                    Button("Convert and Delete Original", role: .destructive) {
-                                        runConvertGroup()
-                                    }
-                                    Button("Cancel", role: .cancel) {}
-                                } message: {
-                                    Text("The original smart group (ID \(groupID.trimmingCharacters(in: .whitespacesAndNewlines))) will be permanently deleted from Jamf Pro once \"\(newName)\" is created. This cannot be undone.")
-                                }
-                            }
-                            .padding(16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.green.opacity(0.1))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.green.opacity(0.4), lineWidth: 1.5)
-                            )
-                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                        }
-                    }
-                    .padding(16)
-                }
-                .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
-
-                // Right Panel: Activity Console
-                VStack(spacing: 0) {
-                    // Console Header Bar
-                    HStack(spacing: 8) {
-                        Image(systemName: "terminal.fill")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.secondary)
-
-                        Text("Activity Log")
-                            .font(.system(.subheadline, design: .default).weight(.semibold))
-                            .foregroundColor(.primary)
-
-                        Spacer()
-
-                        Button(action: copyLogsToClipboard) {
-                            Label("Copy", systemImage: "doc.on.doc")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(logs.isEmpty)
-                        .help("Copy activity log to clipboard")
-
-                        Button(action: { logs.removeAll() }) {
-                            Label("Clear", systemImage: "trash")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(logs.isEmpty)
-                        .help("Clear activity log")
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color(nsColor: .controlBackgroundColor))
-
-                    Divider()
-
-                    // Console Log Stream
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 10) {
-                                ForEach(logs) { entry in
-                                    LogMessageRow(entry: entry)
-                                        .id(entry.id)
-                                }
-                            }
-                            .padding(14)
-                        }
-                        .background(Color(nsColor: .textBackgroundColor))
-                        .onChange(of: logs.count) {
-                            if let last = logs.last {
-                                withAnimation {
-                                    proxy.scrollTo(last.id, anchor: .bottom)
-                                }
-                            }
-                        }
-                    }
-                }
-                .frame(minWidth: 340, idealWidth: 440)
-            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Theme.content)
         }
-        .frame(minWidth: 880, minHeight: 580)
+        .frame(minWidth: 960, minHeight: 620)
         .onAppear {
             if logs.isEmpty {
-                appendLog(type: .header, message: "Welcome to Stupid Groups v1.2!")
+                appendLog(type: .header, message: "Welcome to Stupid Groups v\(appVersion)!")
                 appendLog(type: .info, message: "Enter a Smart Group ID and click Pre-Flight Check to inspect the group before converting.")
             }
         }
+    }
+
+    // MARK: - Panels
+
+    private var configurationPanel: some View {
+        Panel("Target Configuration") {
+            VStack(alignment: .leading, spacing: 14) {
+                // Device Type Picker
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Type of Smart Group")
+                        .font(.system(size: 13, weight: .medium))
+
+                    Picker("Type of Smart Group", selection: $deviceType) {
+                        ForEach(deviceOptions, id: \.self) { option in
+                            Text(option).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .onChange(of: deviceType) { resetConversionState() }
+                }
+
+                // Conversion Type Picker
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("What to convert it to")
+                        .font(.system(size: 13, weight: .medium))
+
+                    Picker("What to convert it to", selection: $conversionType) {
+                        ForEach(conversionOptions, id: \.self) { option in
+                            Text(option).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .onChange(of: conversionType) { resetConversionState() }
+                }
+
+                // Prefix Field
+                AccessibleInputBox(
+                    title: "Prefix to prepend",
+                    systemImage: "tag.fill",
+                    placeholder: "e.g. SG Converted - ",
+                    hint: "Prepended to the original group name.",
+                    text: $prefix
+                )
+                .onChange(of: prefix) { resetConversionState() }
+
+                // Group ID Field
+                AccessibleInputBox(
+                    title: "Smart Group ID",
+                    systemImage: "number",
+                    placeholder: "e.g. 42",
+                    hint: "Found in your Jamf Pro group URL: id={ID}",
+                    text: $groupID
+                )
+                .onChange(of: groupID) { resetConversionState() }
+
+                // Pre-Flight Check is the page's primary action until a group is verified
+                Button(action: runPreflightCheck) {
+                    HStack(spacing: 8) {
+                        if isProcessing && !isReadyToConvert {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        Text(isProcessing && !isReadyToConvert ? "Checking Group..." : "Pre-Flight Check")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PanelButtonStyle(prominent: !isReadyToConvert))
+                .disabled(groupID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
+            }
+            .padding(16)
+        }
+    }
+
+    private var preflightResultPanel: some View {
+        Panel("Pre-Flight Result", accessory: {
+            StatusLabel(text: "Verified", symbol: "checkmark.circle.fill", color: Theme.green)
+        }) {
+            VStack(alignment: .leading, spacing: 0) {
+                FieldRows(
+                    rows: [
+                        ("Original name", smartGroupName),
+                        ("New name", newName),
+                        ("Convert to", conversionType)
+                    ],
+                    valueColor: ["New name": Theme.navy],
+                    monospaced: ["Original name", "New name"]
+                )
+
+                Divider().overlay(Theme.border)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle(isOn: $deleteOriginalAfterConversion) {
+                            Text("Delete original smart group after conversion")
+                                .font(.system(size: 13))
+                        }
+                        .toggleStyle(.checkbox)
+                        .accessibilityHint("When enabled, the original smart group is permanently deleted once the new \(conversionType.lowercased()) is created.")
+
+                        if deleteOriginalAfterConversion {
+                            Label("The original group is only deleted if the conversion succeeds. Jamf Pro will refuse if it is still used by policies, profiles, or other scoping.", systemImage: "exclamationmark.triangle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.leading, 20)
+                        }
+                    }
+
+                    Button(action: {
+                        if deleteOriginalAfterConversion {
+                            showDeleteConfirmation = true
+                        } else {
+                            runConvertGroup()
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            if isProcessing {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
+                            Text(isProcessing ? "Converting..." : "Convert Group Now")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.panelPrimary)
+                    .disabled(isProcessing)
+                    .confirmationDialog(
+                        "Delete \"\(smartGroupName)\" after converting?",
+                        isPresented: $showDeleteConfirmation
+                    ) {
+                        Button("Convert and Delete Original", role: .destructive) {
+                            runConvertGroup()
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("The original smart group (ID \(groupID.trimmingCharacters(in: .whitespacesAndNewlines))) will be permanently deleted from Jamf Pro once \"\(newName)\" is created. This cannot be undone.")
+                    }
+                }
+                .padding(16)
+            }
+        }
+    }
+
+    private var activityLogPanel: some View {
+        Panel("Activity Log", accessory: {
+            Button(action: copyLogsToClipboard) {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.panel)
+            .disabled(logs.isEmpty)
+            .help("Copy activity log to clipboard")
+
+            Button(action: { logs.removeAll() }) {
+                Label("Clear", systemImage: "trash")
+            }
+            .buttonStyle(.panel)
+            .disabled(logs.isEmpty)
+            .help("Clear activity log")
+        }) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        ForEach(logs) { entry in
+                            LogMessageRow(entry: entry)
+                                .id(entry.id)
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: .infinity)
+                .onChange(of: logs.count) {
+                    if let last = logs.last {
+                        withAnimation {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func logCount(_ type: LogType) -> Int {
+        logs.filter { $0.type == type }.count
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2"
     }
 
     private var serverHostString: String {
@@ -554,54 +490,91 @@ public struct ConverterView: View {
     }
 }
 
-// MARK: - Branding Pane
+// MARK: - Sidebar Pane
 
-public struct BrandingPane: View {
-    public init() {}
-
-    // Warm-to-cool gradient chosen to contrast with the blue logo while
-    // keeping the white text readable at the top and bottom.
-    private let gradient = LinearGradient(
-        colors: [
-            Color(red: 0.84, green: 0.33, blue: 0.31),
-            Color(red: 0.71, green: 0.22, blue: 0.43),
-            Color(red: 0.36, green: 0.23, blue: 0.62)
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-    )
+/// Navy sidebar with the app icon, connection status, navigation and version.
+public struct SidebarPane: View {
+    var serverHost: String? = nil
+    var onDisconnect: (() -> Void)? = nil
 
     public var body: some View {
-        VStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 10) {
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 36, height: 36)
+                    .accessibilityHidden(true)
+
+                Text(appName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.sidebarText)
+            }
+            .padding(.top, 8)
+
+            if let serverHost {
+                VStack(alignment: .leading, spacing: 6) {
+                    sidebarHeading("Server")
+                    Label {
+                        Text(serverHost)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color(light: 0x5BC774, dark: 0x5BC774))
+                    }
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.sidebarText)
+                    .help("Connected to \(serverHost)")
+                    .accessibilityLabel("Connected to \(serverHost)")
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    sidebarHeading("Tools")
+                    Label("Convert Smart Group", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.sidebarText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.sidebarSelected, in: RoundedRectangle(cornerRadius: 6))
+                        .accessibilityAddTraits(.isSelected)
+                }
+            } else {
+                Text("Make your Jamf Pro smart groups less smart.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.sidebarHeading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Spacer()
-                .frame(height: 40)
 
-            Image("NinjaLogo")
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: 140, height: 140)
-                .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
-                .accessibilityHidden(true)
-
-            Text(appName)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
-
-            Spacer()
+            if let onDisconnect {
+                Button(action: onDisconnect) {
+                    Label("Disconnect", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.sidebarDimText)
+                .help("Disconnect and return to login screen")
+            }
 
             Text("Version \(versionString)")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.9))
-                .padding(.bottom, 16)
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.sidebarDimText)
                 .textSelection(.enabled)
         }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(gradient)
-        .accessibilityElement(children: .combine)
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Theme.sidebar)
+    }
+
+    private func sidebarHeading(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 10, weight: .semibold))
+            .tracking(0.6)
+            .foregroundStyle(Theme.sidebarHeading)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private var appName: String {
@@ -653,17 +626,17 @@ public struct LogMessageRow: View {
         case .header:
             Image(systemName: "sparkles")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.blue)
+                .foregroundStyle(Theme.blue)
                 .frame(width: 16)
         case .success:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.green)
+                .foregroundStyle(Theme.green)
                 .frame(width: 16)
         case .error:
             Image(systemName: "xmark.octagon.fill")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.red)
+                .foregroundStyle(Theme.red)
                 .frame(width: 16)
         case .info:
             Image(systemName: "info.circle.fill")
@@ -678,9 +651,9 @@ public struct LogMessageRow: View {
         case .header:
             return .primary
         case .success:
-            return .green
+            return Theme.green
         case .error:
-            return .red
+            return Theme.red
         case .info:
             return .primary
         }

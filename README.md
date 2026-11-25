@@ -1,3 +1,5 @@
+<p align="center"><img src="icon.png" width="128" alt="Stupid Groups icon"></p>
+
 # Stupid Groups 2
 
 [![Buy me a coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=russcollis&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff)](https://www.buymeacoffee.com/russcollis)
@@ -12,7 +14,7 @@ This is an updated fork of [mike-levenick/stupid-groups](https://github.com/mike
 
 | | |
 |---|---|
-| **Version** | 2.0.1 |
+| **Version** | 2.0.2 |
 | **Tested with** | Jamf Pro 11.29 |
 | **Requires** | macOS 26 or later |
 | **Signing** | The project is unsigned. Build it yourself in Xcode, or allow it in **System Settings › Privacy & Security** the first time it opens. |

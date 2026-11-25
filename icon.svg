@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B4AA8"/>
+      <stop offset="1" stop-color="#0E1E4D"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFB547"/>
+      <stop offset="1" stop-color="#F08A00"/>
+    </linearGradient>
+    <clipPath id="inside"><rect x="244" y="452" width="536" height="326" rx="48"/></clipPath>
+  </defs>
+  <!-- macOS icon grid: 824px rounded square centred on the 1024 canvas -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <!-- Group frame -->
+  <rect x="222" y="430" width="580" height="370" rx="70" fill="none" stroke="#FFFFFF" stroke-width="44"/>
+  <!-- Three static members (head and shoulders), clipped to the frame -->
+  <g fill="#FFFFFF" clip-path="url(#inside)">
+    <circle cx="342" cy="590" r="46"/>
+    <ellipse cx="342" cy="770" rx="72" ry="100"/>
+    <circle cx="512" cy="572" r="54"/>
+    <ellipse cx="512" cy="770" rx="84" ry="112"/>
+    <circle cx="682" cy="590" r="46"/>
+    <ellipse cx="682" cy="770" rx="72" ry="100"/>
+  </g>
+  <!-- Dunce cap resting on the top edge of the group -->
+  <g transform="rotate(-8 512 400)">
+    <path d="M512 140 L608 392 L416 392 Z" fill="url(#cap)"/>
+    <rect x="392" y="374" width="240" height="40" rx="20" fill="#FFFFFF"/>
+  </g>
+</svg>
